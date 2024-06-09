@@ -28,15 +28,23 @@ app.add_middleware(
 def create_item(docs: Docs):
     print(docs)
 
-    content = "Give the summery of this information :"+docs.data + "And what expected form the summery answer in last if this is a question,if empty leave it  : " + docs.userPrompt 
+    if docs.data == "":
+        return {"error": "File is required"}
+    else:
 
-    chat_completion = client.chat.completions.create(
-    messages=[
-        {
-            "role": "user",
-            "content": content,
-        }
-    ],
-    model="llama3-8b-8192",
-)
-    return chat_completion.choices[0].message.content
+        content = "Instruction : Your are the summery generator, your job is to generate the summery of the give data and also you get some additional input how you should generate the summery, if not give just generate summery. Data :"+docs.data + "And Additional input : " + docs.userPrompt + "dont give any explanation  like here is you summery or something like that just start with the summery. And summery should be at least of 200 words."
+
+        try : 
+            chat_completion = client.chat.completions.create(
+            messages=[
+                {
+                    "role": "user",
+                    "content": content,
+                }
+            ],
+                model="llama3-8b-8192",
+            )
+
+            return chat_completion.choices[0].message.content
+        except Exception as e:
+            return {"error": str(e)}
