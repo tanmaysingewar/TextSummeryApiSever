@@ -16,8 +16,8 @@ class Docs(BaseModel):
 app = FastAPI()
 
 origins = [
-    "http://localhost",
-    "http://localhost:3000",
+    # "http://localhost",
+    # "http://localhost:3000",
     "https://summarizer-aigurukul.vercel.app/",
     "http://summarizer-aigurukul.vercel.app/",
     "https://summarizer-aigurukul.vercel.app",
@@ -26,17 +26,20 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins= origins,
+    allow_origins= ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+@app.get("/health")
+def read_root():
+    print("Health Check")
+    return {"status": "ok"}
+
 
 @app.post("/summarize")
 def create_item(docs: Docs):
-    print(docs)
-
     if docs.data == "":
         return {"error": "File is required"}
     else:
