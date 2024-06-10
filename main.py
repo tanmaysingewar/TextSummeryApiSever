@@ -16,15 +16,17 @@ class Docs(BaseModel):
 app = FastAPI()
 
 origins = [
-    "http://localhost",
-    "http://localhost:8080",
-    "http://localhost:3000",
-    "https://summarizer-aigurukul.vercel.app/"
+    # "http://localhost",
+    # "http://localhost:3000",
+    "https://summarizer-aigurukul.vercel.app/",
+    "http://summarizer-aigurukul.vercel.app/",
+    "https://summarizer-aigurukul.vercel.app",
+    "http://summarizer-aigurukul.vercel.app",
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=['*'],
+    allow_origins= origins,
     allow_credentials=False,
     allow_methods=["*"],
 )
