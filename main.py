@@ -59,3 +59,24 @@ def create_item(docs: Docs):
             return chat_completion.choices[0].message.content
         except Exception as e:
             return {"error": str(e)}
+
+@app.post('/chat')
+def chat(docs : Docs):
+    if docs.data == "":
+        return {"error": "File is required"}
+    else: 
+
+        content = "Role: You are the Q&A solver. Here is your information: Data: " + docs.data + "Using this information, answer the following question: Question:"+ docs.userPrompt + "Instruction: Answer the question using the information provided in the data."
+        try : 
+            chat_completion = client.chat.completions.create(
+                messages=[
+                    {
+                        "role": "user",
+                        "content": content,
+                    }
+                ],
+                model="llama3-8b-8192",
+            )
+            return chat_completion.choices[0].message.content
+        except :
+            return {"error": str(e)}
