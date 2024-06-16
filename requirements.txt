@@ -6,3 +6,4 @@ fastapi-cors
 docx
 PyPDF2
 pathlib
+typing_extensions
