@@ -12,7 +12,6 @@ from pathlib import Path
 
 UPLOAD_DIR = Path() / "upload"
 
-
 client = Groq(
     api_key="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",
 )
@@ -148,7 +147,7 @@ async def file_chat(
         # Assuming client.chat.completions.create is defined elsewhere
         chat_completion = client.chat.completions.create(
             messages=[{"role": "user", "content": content}],
-            model="llama3-8b-8192",
+            model="mixtral-8x7b-32768",
         )
 
         return chat_completion.choices[0].message.content
