@@ -56,28 +56,31 @@ def read_root():
             return {"error": str(e)}
 
 
-def extract_text_from_pdf(file_data):
+def extract_text_from_pdf(file_path):
     reader = PdfReader(file_path)
     number_of_pages = len(reader.pages)
     text = ""
     for page in reader.pages:
         text += page.extract_text()
     print(text)
+    os.remove(file_path)
     return text
 
-def extract_text_from_docx(file_data):
-    doc = Document(file_data)
+def extract_text_from_docx(file_path):
+    doc = Document(file_path)
     print("Docs File Read")
     para = doc.paragraphs
     text = ""
     for p in para:
         text += p.text
     print(text)
+    os.remove(file_path)
     return text
 
-def extract_text_from_txt(file_data):
-    with open(file_data, "r") as f:
+def extract_text_from_txt(file_path):
+    with open(file_path, "r") as f:
         text = f.read()
+    os.remove(file_path)
     return text
 
 @app.post("/summarize")
@@ -100,7 +103,7 @@ async def file_summary(
         else:
             return {"error": "Unsupported file type"}
         
-        os.remove(file_path)
+     
 
         content = (
             f"Instruction: You are a summary generator, your job is to generate a summary of the given data. "
@@ -118,6 +121,7 @@ async def file_summary(
         return chat_completion.choices[0].message.content
     except Exception as e:
         return {"error": str(e)}
+
 
 
 @app.post("/chat")
@@ -147,7 +151,7 @@ async def file_chat(
         # Assuming client.chat.completions.create is defined elsewhere
         chat_completion = client.chat.completions.create(
             messages=[{"role": "user", "content": content}],
-            model="mixtral-8x7b-32768",
+            model="llama3-8b-8192",
         )
 
         return chat_completion.choices[0].message.content
