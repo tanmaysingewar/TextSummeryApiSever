@@ -143,8 +143,6 @@ async def file_chat(
             text = extract_text_from_txt(file_path)
         else:
             return {"error": "Unsupported file type"}
-        
-        os.remove(file_path)
 
         content = "Role: You are the Q&A solver. Here is your information: Data: " + text + "Using this information, answer the following question: Question:"+ userPrompt + "Instruction: Answer the question using the information provided in the data."
 
