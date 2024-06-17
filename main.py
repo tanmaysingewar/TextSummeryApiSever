@@ -16,10 +16,6 @@ client = Groq(
     api_key="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",
 )
 
-class Data(BaseModel):
-    file : UploadFile
-    userPrompt : str | None = None
-
 
 app = FastAPI()
 
@@ -103,8 +99,6 @@ async def file_summary(
         else:
             return {"error": "Unsupported file type"}
         
-     
-
         content = (
             f"Instruction: You are a summary generator, your job is to generate a summary of the given data. "
             f"You have to follow the instructions given on how to generate the summary. If no instruction is given, "
@@ -112,7 +106,6 @@ async def file_summary(
             f"Instruction: The summary should be at least 200 words long."
         )
 
-        # Assuming client.chat.completions.create is defined elsewhere
         chat_completion = client.chat.completions.create(
             messages=[{"role": "user", "content": content}],
             model="llama3-8b-8192",
@@ -144,9 +137,10 @@ async def file_chat(
         else:
             return {"error": "Unsupported file type"}
 
-        content = "Role: You are the Q&A solver. Here is your information: Data: " + text + "Using this information, answer the following question: Question:"+ userPrompt + "Instruction: Answer the question using the information provided in the data."
+        content = (
+            f"Instruction: You are a Q&A solver. Here is your information: Data: {text} Using this information, answer the following question: Question: {userPrompt} Instruction: Answer the question using the information provided in the data."
+        ) 
 
-        # Assuming client.chat.completions.create is defined elsewhere
         chat_completion = client.chat.completions.create(
             messages=[{"role": "user", "content": content}],
             model="llama3-8b-8192",
