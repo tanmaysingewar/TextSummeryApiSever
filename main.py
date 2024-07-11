@@ -17,11 +17,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 import random
 import re
 
-from sklearn.cluster import KMeans
-import numpy as np
-
 from docx import Document
-from PyPDF2 import PdfReader
 from pathlib import Path
 
 UPLOAD_DIR = Path() / "upload"
@@ -235,7 +231,7 @@ async def quiz(
         
         print(chat_completion.choices[0].message.content)
         json_format =  parse_quiz(chat_completion.choices[0].message.content) 
-        
+
         json_compatible_item_data = jsonable_encoder(json_format)
         print(json_compatible_item_data)
         return JSONResponse(content=json_compatible_item_data)
