@@ -6,31 +6,19 @@ from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api.formatters import JSONFormatter
 from youtube_transcript_api.formatters import TextFormatter
 
-
 import os
 from groq import Groq
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
-
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-
-from llama_index.core import SimpleDirectoryReader, VectorStoreIndex, Settings
-from llama_index.embeddings.huggingface import HuggingFaceEmbedding
-from llama_index.core import StorageContext, load_index_from_storage
-
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
 
 import random
 import re
 
 from sklearn.cluster import KMeans
 import numpy as np
-
-
-
 
 from docx import Document
 from PyPDF2 import PdfReader
@@ -41,8 +29,6 @@ UPLOAD_DIR = Path() / "upload"
 client = Groq(
     api_key="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",
 )
-
-embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-small-en-v1.5")
 
 
 app = FastAPI()
@@ -55,7 +41,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/health")
+@app.get("/")
 def read_root():
     print("Health Check")
     return {"status": "ok"}
@@ -84,28 +70,6 @@ def extract_text_from_txt(file_path):
         text = f.read()
     os.remove(file_path)
     return text
-
-class DocumentStore:
-    def __init__(self):
-        self.documents = []
-        self.vectorizer = TfidfVectorizer()
-        self.document_matrix = None
-
-    def add_document(self, text):
-        new_chunks = chunk_text(text)
-        self.documents.extend(new_chunks)
-        self.document_matrix = self.vectorizer.fit_transform(self.documents)
-
-    def query(self, userPrompt, top_k=5):
-        if not self.documents:
-            return []
-
-        query_vector = self.vectorizer.transform([userPrompt])
-        similarities = cosine_similarity(query_vector, self.document_matrix).flatten()
-        indices = similarities.argsort()[-top_k:][::-1]
-        return [self.documents[i] for i in indices]
-
-store = DocumentStore()
 
 @app.post("/summarize")
 async def file_summary(
@@ -177,15 +141,9 @@ async def file_chat(
         else:
             return {"error": "Unsupported file type"}
 
-            # load_index_from_storage() missing 1 required positional argument: 'storage_context'
-
-        index = VectorStoreIndex.from_vector_store(vector_store)
-        query_engine = index.as_query_engine()
-
-        response = query_engine.query(userPrompt)
 
         content = (
-            f"Instruction: You are a Q&A solver. Here is your information: Data: {response} Using this information, answer the following question: Question: {userPrompt} Instruction: Answer the question using the information provided in the data."
+            f"Instruction: You are a Q&A solver. Here is your information: Data: {text} Using this information, answer the following question: Question: {userPrompt} Instruction: Answer the question using the information provided in the data."
         ) 
 
         chat_completion = client.chat.completions.create(
@@ -276,10 +234,8 @@ async def quiz(
 
         
         print(chat_completion.choices[0].message.content)
-        # print the parsed quiz its array of questions and options
         json_format =  parse_quiz(chat_completion.choices[0].message.content) 
-
-
+        
         json_compatible_item_data = jsonable_encoder(json_format)
         print(json_compatible_item_data)
         return JSONResponse(content=json_compatible_item_data)
