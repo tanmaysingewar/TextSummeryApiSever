@@ -18,6 +18,7 @@ import random
 import re
 
 from docx import Document
+from PyPDF2 import PdfReader
 from pathlib import Path
 
 UPLOAD_DIR = Path() / "upload"
