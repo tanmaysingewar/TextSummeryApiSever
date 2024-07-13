@@ -31,7 +31,6 @@ client = Groq(
     api_key="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",
 )
 
-
 app = FastAPI()
 
 app.add_middleware(
@@ -45,6 +44,14 @@ app.add_middleware(
 def chunk_text(text, chunk_size=500):
     words = text.split()
     return [' '.join(words[i:i + chunk_size]) for i in range(0, len(words), chunk_size)]
+
+def extract_video_id(url):
+    # Regular expression pattern to match the video ID in different URL formats
+    pattern = r'(?:v=|\/)([0-9A-Za-z_-]{11}).*'
+    match = re.search(pattern, url)
+    if match:
+        return match.group(1)
+    return None
 
 class DocumentStore:
     def __init__(self):
@@ -288,7 +295,10 @@ def yt_summary(
         if not yt_link:
             return JSONResponse({"error": "YouTube link is required"})
 
-        video_id = yt_link.split("v=")[1].split("&")[0]
+        # https://youtu.be/DHjqpvDnNGE?si=49jlB7vXUP9aAonR
+        # https://www.youtube.com/watch?v=DHjqpvDnNGE&t=33s
+
+        video_id = extract_video_id(yt_link)
 
         transcript = YouTubeTranscriptApi.get_transcript(video_id)
         formatter = TextFormatter()
@@ -322,7 +332,7 @@ async def file_chat(
         if not yt_link:
             return JSONResponse({"error": "YouTube link is required"})
 
-        video_id = yt_link.split("v=")[1].split("&")[0]
+        video_id = extract_video_id(yt_link)
 
         transcript = YouTubeTranscriptApi.get_transcript(video_id)
         formatter = TextFormatter()
@@ -366,7 +376,7 @@ async def quiz(
         if not yt_link:
             return JSONResponse({"error": "YouTube link is required"})
 
-        video_id = yt_link.split("v=")[1].split("&")[0]
+        video_id = extract_video_id(yt_link)
 
         transcript = YouTubeTranscriptApi.get_transcript(video_id)
         formatter = TextFormatter()
