@@ -10,3 +10,8 @@ typing_extensions
 langchain-text-splitters
 llama-index
 youtube-transcript-api
+langchain-community
+llama-index 
+llama-index-embeddings-huggingface
+docarray
+scikit-learn
