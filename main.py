@@ -46,7 +46,6 @@ def chunk_text(text, chunk_size=500):
     return [' '.join(words[i:i + chunk_size]) for i in range(0, len(words), chunk_size)]
 
 def extract_video_id(url):
-    # Regular expression pattern to match the video ID in different URL formats
     pattern = r'(?:v=|\/)([0-9A-Za-z_-]{11}).*'
     match = re.search(pattern, url)
     if match:
