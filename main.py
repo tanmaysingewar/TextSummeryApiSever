@@ -297,7 +297,10 @@ def yt_summary(
         # https://youtu.be/DHjqpvDnNGE?si=49jlB7vXUP9aAonR
         # https://www.youtube.com/watch?v=DHjqpvDnNGE&t=33s
 
-        video_id = extract_video_id(yt_link)
+        try:
+            video_id = extract_video_id(yt_link)
+        except Exception as e:
+            return {"error": str("Could not retrieve a transcript for the video")}
 
         transcript = YouTubeTranscriptApi.get_transcript(video_id)
         formatter = TextFormatter()
@@ -331,7 +334,10 @@ async def file_chat(
         if not yt_link:
             return JSONResponse({"error": "YouTube link is required"})
 
-        video_id = extract_video_id(yt_link)
+        try:
+            video_id = extract_video_id(yt_link)
+        except Exception as e:
+            return {"error": str("Could not retrieve a transcript for the video")}
 
         transcript = YouTubeTranscriptApi.get_transcript(video_id)
         formatter = TextFormatter()
@@ -375,7 +381,10 @@ async def quiz(
         if not yt_link:
             return JSONResponse({"error": "YouTube link is required"})
 
-        video_id = extract_video_id(yt_link)
+        try:
+            video_id = extract_video_id(yt_link)
+        except Exception as e:
+            return {"error": str("Could not retrieve a transcript for the video")}
 
         transcript = YouTubeTranscriptApi.get_transcript(video_id)
         formatter = TextFormatter()
@@ -447,4 +456,4 @@ async def quiz(
 
     except Exception as e:
         print(e)
-        return {"error": str(e)}
+        return {"error": str("Could not retrieve a transcript for the video")}

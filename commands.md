@@ -13,3 +13,11 @@ fastapi dev main.py
 
 ## Deactivate 
 deactivate
+
+
+## YT Likes
+https://youtu.be/HCV9nueXQ6Y?feature=shared === error
+
+https://www.youtube.com/watch?v=DHjqpvDnNGE
+
+https://youtu.be/DHjqpvDnNGE?si=49jlB7vXUP9aAonR
