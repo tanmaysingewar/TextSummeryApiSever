@@ -384,7 +384,7 @@ async def quiz(
         try:
             video_id = extract_video_id(yt_link)
         except Exception as e:
-            return {"error": str("Could not retrieve a transcript for the video")}
+            return {"error": str("Could not retrieve a transcript for the video YT API")}
 
         transcript = YouTubeTranscriptApi.get_transcript(video_id)
         formatter = TextFormatter()
