@@ -15,3 +15,10 @@ llama-index
 llama-index-embeddings-huggingface
 docarray
 scikit-learn
+
+requests
+google-api-python-client
+
+google-auth 
+google-auth-oauthlib 
+google-auth-httplib2
