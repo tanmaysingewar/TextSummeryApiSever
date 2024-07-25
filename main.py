@@ -328,10 +328,6 @@ def yt_summary(
     try:
         if not yt_link:
             return JSONResponse({"error": "YouTube link is required"})
-
-        # https://youtu.be/DHjqpvDnNGE?si=49jlB7vXUP9aAonR
-        # https://www.youtube.com/watch?v=DHjqpvDnNGE&t=33s
-
         try:
             video_id = extract_video_id(yt_link)
         except Exception as e:
@@ -601,6 +597,88 @@ async def v2YTquiz(
         json_format = json.dumps(json_format)
 
         json_compatible_item_data = jsonable_encoder(json_format)
+        print(json_compatible_item_data)
+
+        return JSONResponse(content=json_compatible_item_data)
+
+    except Exception as e:
+        print(e)
+        return {"error": str("Could not retrieve a transcript for the video")}
+
+
+@app.post("/v2/ytsummarize")
+async def v2YTsummarize(
+    item : YTTranscript):
+    try: 
+        print(item)
+        yt_link = item.yt_link
+        if not yt_link:
+            return JSONResponse({"error": "YouTube link is required"})
+        print(yt_link)
+
+        try:
+            video_id = extract_video_id(yt_link)
+        except Exception as e:
+            return {"error": str("Could not retrieve a transcript for the video YT API")}
+
+        try : 
+            transcript = YouTubeTranscriptApi.get_transcript(video_id)
+            formatter = TextFormatter()
+        except Exception as e:
+            transcript = False
+
+        if transcript == False:
+            print("No transcript found")
+            content = (
+                f"Instruction: You are a YouTube summary generator, your job is to generate a summary of the given data. "
+                f"You have to follow the instructions given on how to generate the summary. If no instruction is given, "
+                f"then just generate the summary on the topic : Topic: {item.title} "
+                f"Instruction: The summary should be at least 200 words long and formatted as follows:\n\n"
+                f"<h2>Summary of {item.title}</h2>\n\n"
+                f"<p>Summary text goes here, based on the provided data.</p>\n\n"
+                f"<ul>\n"
+                f"  <li>First key point</li>\n"
+                f"  <li>Second key point</li>\n"
+                f"  <li>Third key point</li>\n"
+                f"  <li>...</li>\n"
+                f"</ul>\n\n"
+                f"<p>Additional summary text or concluding remarks.</p>\n\n"
+                f"<p>Ready to test your knowledge? Take the quiz now and earn coins and XP!</p>"
+            )
+
+            chat_completion = client.chat.completions.create(
+                messages=[{"role": "user", "content": content}],
+                model="llama3-70b-8192",
+            )
+        else:
+            print("Transcript found")
+            print(transcript)
+            text_formatted = formatter.format_transcript(transcript)
+
+            content = (
+                f"Instruction: You are a YouTube summary generator, your job is to generate a summary of the given data. "
+                f"You have to follow the instructions given on how to generate the summary. If no instruction is given, "
+                f"then just generate the summary. Data: {text_formatted} "
+                f"Instruction: The summary should be at least 200 words long and formatted as follows:\n\n"
+                f"<h2>Summary of {item.title}</h2>\n\n"
+                f"<p>Summary text goes here, based on the provided data.</p>\n\n"
+                f"<ul>\n"
+                f"  <li>First key point</li>\n"
+                f"  <li>Second key point</li>\n"
+                f"  <li>Third key point</li>\n"
+                f"  <li>...</li>\n"
+                f"</ul>\n\n"
+                f"<p>Additional summary text or concluding remarks.</p>\n\n"
+                f"<p>Ready to test your knowledge? Take the quiz now and earn coins and XP!</p>"
+            )
+
+            chat_completion = client.chat.completions.create(
+                messages=[{"role": "user", "content": content}],
+                model="llama3-70b-8192",
+            )
+        
+
+        json_compatible_item_data = jsonable_encoder(chat_completion.choices[0].message.content)
         print(json_compatible_item_data)
 
         return JSONResponse(content=json_compatible_item_data)
