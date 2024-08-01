@@ -7,18 +7,9 @@ python-docx
 PyPDF2
 pathlib
 typing_extensions
-langchain-text-splitters
-llama-index
 youtube-transcript-api
-langchain-community
-llama-index 
-llama-index-embeddings-huggingface
 docarray
 scikit-learn
+langchain_text_splitters
 
 requests
-google-api-python-client
-
-google-auth 
-google-auth-oauthlib 
-google-auth-httplib2

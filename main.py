@@ -90,23 +90,6 @@ def read_root():
     return {"status": "ok"}
 
 
-def get_transcript(video_id):
-    payload = {
-        "language": "en",
-        "webhookUrl": "http://example.com/webhook",
-        "youtubeVideoId": "DHjqpvDnNGE"
-    }
-    headers = {
-        "api-key": "i!SxML+kG?+6m4HR8DXFkD8CMgnVI#rNroaWdMu2qP!Gz#ot",
-        "Content-Type": "application/json"
-    }
-
-    response = requests.request("POST", url, json=payload, headers=headers)
-
-    print(response.text)
-
-    return response.text
-
 def extract_text_from_pdf(file_path):
     reader = PdfReader(file_path)
     number_of_pages = len(reader.pages)
@@ -328,12 +311,16 @@ def yt_summary(
     try:
         if not yt_link:
             return JSONResponse({"error": "YouTube link is required"})
-        try:
+
+        try :
             video_id = extract_video_id(yt_link)
         except Exception as e:
-            return {"error": str("Could not retrieve a transcript for the video")}
+            return {"error": str("Could not retrieve a transcript for the video YT API")}
 
-        transcript = get_transcript(video_id)
+        transcript = YouTubeTranscriptApi.get_transcript(video_id)
+        formatter = TextFormatter()
+
+        text_formatted = formatter.format_transcript(transcript)
 
         content = (
             f"Instruction: You are a YouTube summary generator, your job is to generate a summary of the given data. "
