@@ -14,6 +14,12 @@ fastapi dev main.py
 ## Deactivate 
 deactivate
 
+## To run the server
+uvicorn main:app --host 0.0.0.0 --port 5000
+
+## To run the server in background
+nohup uvicorn main:app --host 0.0.0.0 --port 5000 
+
 
 ## YT Likes
 https://youtu.be/HCV9nueXQ6Y?feature=shared === error

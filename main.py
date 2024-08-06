@@ -3,7 +3,6 @@ from pydantic import BaseModel
 from typing_extensions import Annotated
 from typing import Union
 
-
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api.formatters import TextFormatter
 
@@ -615,7 +614,6 @@ async def v2YTquiz(
         print(e)
         return {"error": str("Could not retrieve a transcript for the video")}
 
-
 @app.post("/v2/ytsummarize")
 async def v2YTsummarize(
     item : YTTranscript):
@@ -698,7 +696,8 @@ async def v2YTsummarize(
         return {"error": str("Could not retrieve a transcript for the video")}
 
 @app.post("/v2/ytQuizAndSummary")
-async def v2YTQuizAndSummary(item : YTTranscript) :
+async def v2YTQuizAndSummary(
+    item : YTTranscript) :
     try:
         print(item)
         yt_link = item.yt_link
@@ -795,9 +794,8 @@ async def v2YTQuizAndSummary(item : YTTranscript) :
             "summery" : summery_response.choices[0].message.content,
             "quiz" : json_format
         })
-        print(json_compatible_item_data)
 
-        return JSONResponse(content=json_compatible_item_data)
+        return JSONResponse( )
     except Exception as e:
         print(e)
-        return {"error": str("Could not retrieve a transcript for the video")}
+        return {"error": str("Error occurred while generating the quiz and summary")}
