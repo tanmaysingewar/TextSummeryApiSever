@@ -26,11 +26,10 @@ from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 import traceback
 
+from chat_completion import chat_completion
+
 import requests
 import json
-
-url = "https://api.transcribetube.com/api/transcribeVideo"
-
 
 UPLOAD_DIR = Path() / "upload"
 
@@ -65,26 +64,29 @@ def extract_video_id(url):
     return None
 
 def parse_quiz(response):
-        question_blocks = re.split(r"\*\*Question \d+:\*\*", response)[1:]
-        parsed_quiz = []
+    question_blocks = re.split(r"Question \d+:", response)[1:]
+    parsed_quiz = []
 
-        for block in question_blocks:
-            question_match = re.search(r"^(.*?)\n", block)
-            question_text = question_match.group(1).strip() if question_match else block.strip()
-            
-            options = re.findall(r"\*\*Option (\d+):\*\* (.*?)\n", block)
-            formatted_options = [f"{opt[1]}" for opt in options]
+    for block in question_blocks:
+        # Extract the question text
+        question_match = re.search(r"^(.*?)\n", block.strip())
+        question_text = question_match.group(1).strip() if question_match else block.strip()
+        
+        # Extract the options
+        options = re.findall(r"Option \d+: (.*?)\n", block)
+        formatted_options = [opt.strip() for opt in options]
 
-            answer_match = re.search(r"\*\*Answer:\*\* (\d+)", block)
-            answer_option = answer_match.group(1) if answer_match else ""
+        # Extract the answer
+        answer_match = re.search(r"Answer: (\d+)", block)
+        answer_option = answer_match.group(1) if answer_match else ""
 
-            parsed_quiz.append({
-                "question": question_text,
-                "options": formatted_options,
-                "answer": answer_option
-            })
+        parsed_quiz.append({
+            "question": question_text,
+            "options": formatted_options,
+            "answer": answer_option
+        })
 
-        return parsed_quiz
+    return parsed_quiz
 
 
 class DocumentStore:
@@ -156,34 +158,27 @@ async def file_summary(
         else:
             return {"error": "Unsupported file type"}
         
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=2000,
-            length_function=len,
-            is_separator_regex=False,
-        )
-
-        chunk = text_splitter.create_documents([text])
-
-        combined_text = ""
-        for i in range(4):
-            combined_text += str(random.choice(chunk))
-
-        
         content = (
             f"Instruction: You are a summary generator, your job is to generate a summary of the given data. "
             f"You have to follow the instructions given on how to generate the summary. If no instruction is given, "
-            f"then just generate the summary. Data: {combined_text} Instruction: {userPrompt} "
+            f"then just generate the summary. Data: {text} Instruction: {userPrompt} "
             f"Instruction: The summary should be at least 200 words long."
         )
 
-        chat_completion = client.chat.completions.create(
-            messages=[{"role": "user", "content": content}],
-            model="llama3-70b-8192",
-        )
+        chat_response = chat_completion(content)
+        if chat_response == 429:   
+            print("Too many requests")
+            return JSONResponse({"error": "Too many requests, it pass Request rate limit or Token rate limit"})
+        elif chat_response == 400:   
+            print("Messages have 39388 tokens, which exceeds the max limit of 16384 tokens.")
+            return JSONResponse({"error": "Messages have 39388 tokens, which exceeds the max limit of 16384 tokens."})
+        elif chat_response == False:   
+            print("Error in chat completion")
+            return JSONResponse({"error": "Error in generating the summary"})
 
-        return chat_completion.choices[0].message.content
+        return chat_response
     except Exception as e:
-        return {"error": str(e)}
+        return {"error": "Error occurred while responding to the summary"}
 
 @app.post("/chat")
 async def file_chat(
@@ -223,17 +218,22 @@ async def file_chat(
             f"Instruction: Answer the question using the information provided in the data."
         )
 
-        chat_completion = client.chat.completions.create(
-            messages=[{"role": "user", "content": content}],
-            model="llama3-70b-8192",
-        )
-
-        # Return the chat completion result
-        return chat_completion.choices[0].message.content
+        chat_response = chat_completion(content)
+        if chat_response == 429:   
+            print("Too many requests")
+            return JSONResponse({"error": "Too many requests, it pass Request rate limit or Token rate limit"})
+        elif chat_response == 400:   
+            print("Messages have 39388 tokens, which exceeds the max limit of 16384 tokens.")
+            return JSONResponse({"error": "Messages have 39388 tokens, which exceeds the max limit of 16384 tokens."})
+        elif chat_response == False:   
+            print("Error in chat completion")
+            return JSONResponse({"error": "Error in generating the summary"})
+        
+        return chat_response
     
     except Exception as e:
         print(e)
-        return JSONResponse({"error": str(e)})
+        return JSONResponse({"error": "Error occurred while responding to the query"})
 
 @app.post("/quiz")
 async def quiz(
@@ -268,50 +268,35 @@ async def quiz(
 
 
         content = (
-            f"Generate a quiz based on the following information: Data: {combined_text} "
-            f"Instructions :"
-            f"1. Generate a quiz based on the given information."
-            f"2. The quiz should be at least 10 questions long."
-            f"3. The quiz should be in the form of a list of questions and options."
-            f"Format of the quiz:"
-            f"Each question should be start with **Question :***"
-            f"Option should be start with **Option :***"
-            f"Each answer should be like **Answer :*** and only give the option number for the answer"
-            f"Options: 1, 2, 3, 4"
-            f"Answer: Answer"
-        ) 
+                f"Generate a quiz based on the following information: Data: {combined_text} "
+                f"Instructions :"
+                f"1. Generate a quiz based on the given information."
+                f"2. The quiz should be in the form of a list of questions and options."
+                f"Here is sample question format:"
+                f"Question 1: question text"
+                f"Option 1: option text"
+                f"Option 2: option text"
+                f"Option 3: option text"
+                f"Option 4: option text"
+                f"Answer: No of option selected like 1, 2, 3, 4"
+                f"Al the quiz should be in the form of the above format only."
+                f"Generate 10 questions."
+            )  
 
-        chat_completion = client.chat.completions.create(
-            messages=[{"role": "user", "content": content}],
-            model="llama3-70b-8192",
-        )
-
-        
-        def parse_quiz(response):
-            question_blocks = re.split(r"\*\*Question \d+:\*\*", response)[1:]
-            parsed_quiz = []
-
-            for block in question_blocks:
-                question_match = re.search(r"^(.*?)\n", block)
-                question_text = question_match.group(1).strip() if question_match else block.strip()
-                
-                options = re.findall(r"\*\*Option (\d+):\*\* (.*?)\n", block)
-                formatted_options = [f"{opt[1]}" for opt in options]
-
-                answer_match = re.search(r"\*\*Answer:\*\* (\d+)", block)
-                answer_option = answer_match.group(1) if answer_match else ""
-
-                parsed_quiz.append({
-                    "question": question_text,
-                    "options": formatted_options,
-                    "answer": answer_option
-                })
-
-            return parsed_quiz
+        quiz_response = chat_completion(content)
+        if quiz_response == 429:   
+            print("Too many requests")
+            return JSONResponse({"error": "Too many requests, it pass Request rate limit or Token rate limit"})
+        elif quiz_response == 400:
+            print("Messages have 39388 tokens, which exceeds the max limit of 16384 tokens.")
+            return JSONResponse({"error": "Messages have 39388 tokens, which exceeds the max limit of 16384 tokens."})
+        elif quiz_response == False:   
+            print("Error in chat completion")
+            return JSONResponse({"error": "Error in generating the summary"})
 
         
-        print(chat_completion.choices[0].message.content)
-        json_format =  parse_quiz(chat_completion.choices[0].message.content) 
+        print(quiz_response)
+        json_format =  parse_quiz(quiz_response) 
         print(json_format)
 
         json_format = json.dumps(json_format)
@@ -324,7 +309,7 @@ async def quiz(
 
     except Exception as e:
         print(e)
-        return {"error": str(e)}
+        return {"error": "Error occurred while generating the quiz"}
 
 @app.post("/ytsummarize")
 def yt_summary(
@@ -350,16 +335,23 @@ def yt_summary(
             f"then just generate the summary. Data: {transcript} & UserPrompt: {userPrompt} "
             f"Instruction: The summary should be at least 200 words long."
         )
+       
+        chat_response = chat_completion(content)
+        if chat_response == 429:   
+            print("Too many requests")
+            return JSONResponse({"error": "Too many requests, it pass Request rate limit or Token rate limit"})
+        elif chat_response == 400:   
+            print("Messages have 39388 tokens, which exceeds the max limit of 16384 tokens.")
+            return JSONResponse({"error": "Messages have 39388 tokens, which exceeds the max limit of 16384 tokens."})
+        elif chat_response == False:   
+            print("Error in chat completion")
+            return JSONResponse({"error": "Error in generating the summary"})
+        
+        return chat_response
 
-        chat_completion = client.chat.completions.create(
-            messages=[{"role": "user", "content": content}],
-            model="llama3-70b-8192",
-        )
-
-        return chat_completion.choices[0].message.content
     except Exception as e:
         print(e)
-        return {"error": str(e)}
+        return {"error": "Error occurred while responding to the summary"}
 
 @app.post("/ytchat")
 async def file_chat(
@@ -397,18 +389,22 @@ async def file_chat(
             f"Instruction: Answer the question using the information provided in the data."
         )
 
-        chat_completion = client.chat.completions.create(
-            messages=[{"role": "user", "content": content}],
-            model="llama3-70b-8192",
-        )
-
-        # Return the chat completion result
-        print(chat_completion.choices[0].message.content)
-        return chat_completion.choices[0].message.content
+        chat_response = chat_completion(content)
+        if chat_response == 429:   
+            print("Too many requests")
+            return JSONResponse({"error": "Too many requests, it pass Request rate limit or Token rate limit"})
+        elif chat_response == 400:   
+            print("Messages have 39388 tokens, which exceeds the max limit of 16384 tokens.")
+            return JSONResponse({"error": "Messages have 39388 tokens, which exceeds the max limit of 16384 tokens."})
+        elif chat_response == False:   
+            print("Error in chat completion")
+            return JSONResponse({"error": "Error in generating the summary"})
+        
+        return chat_response
     
     except Exception as e:
         print(e)
-        return JSONResponse({"error": str(e)})
+        return JSONResponse({"error": "Error occurred while responding to the query"})
 
 @app.post("/ytquiz")
 async def quiz(
@@ -442,168 +438,38 @@ async def quiz(
 
 
         content = (
-            f"Generate a quiz based on the following information: Data: {combined_text} "
-            f"Instructions :"
-            f"1. Generate a quiz based on the given information."
-            f"2. The quiz should be at least 10 questions long."
-            f"3. The quiz should be in the form of a list of questions and options."
-            f"Format of the quiz:"
-            f"Each question should be start with **Question :***"
-            f"Option should be start with **Option :***"
-            f"Each answer should be like **Answer :*** and only give the option number for the answer"
-            f"Options: 1, 2, 3, 4"
-            f"Answer: Answer"
-        ) 
-
-        chat_completion = client.chat.completions.create(
-            messages=[{"role": "user", "content": content}],
-            model="llama3-70b-8192",
-        )
-
-        
-        def parse_quiz(response):
-            question_blocks = re.split(r"\*\*Question \d+:\*\*", response)[1:]
-            parsed_quiz = []
-
-            for block in question_blocks:
-                question_match = re.search(r"^(.*?)\n", block)
-                question_text = question_match.group(1).strip() if question_match else block.strip()
-                
-                options = re.findall(r"\*\*Option (\d+):\*\* (.*?)\n", block)
-                formatted_options = [f"{opt[1]}" for opt in options]
-
-                answer_match = re.search(r"\*\*Answer:\*\* (\d+)", block)
-                answer_option = answer_match.group(1) if answer_match else ""
-
-                parsed_quiz.append({
-                    "question": question_text,
-                    "options": formatted_options,
-                    "answer": answer_option
-                })
-
-            return parsed_quiz
-
-        
-        print(chat_completion.choices[0].message.content)
-        json_format =  parse_quiz(chat_completion.choices[0].message.content) 
-        print(json_format)
-
-        json_format = json.dumps(json_format)
-        print(json_format)
-
-        json_compatible_item_data = jsonable_encoder(json_format)
-        print(json_compatible_item_data)
-
-        return JSONResponse(content=json_compatible_item_data)
-
-    except Exception as e:
-        print(e)
-        return {"error": str("Could not retrieve a transcript for the video")}
-
-@app.post("/v2/ytquiz")
-async def v2YTquiz(
-    item : YTTranscript):
-    try: 
-        print(item)
-        yt_link = item.yt_link
-        if not yt_link:
-            return JSONResponse({"error": "YouTube link is required"})
-        print(yt_link)
-
-        try:
-            video_id = extract_video_id(yt_link)
-        except Exception as e:
-            return {"error": str("Could not retrieve a transcript for the video YT API")}
-
-        try : 
-            transcript = YouTubeTranscriptApi.get_transcript(video_id)
-            formatter = TextFormatter()
-        except Exception as e:
-            transcript = False
-
-        if transcript == False:
-            print("No transcript found")
-            content = (
-                f"Generate a quiz based on the give Topic : Topic: {item.title} "
-                f"Instructions :"
-                f"1. Generate a quiz based on the given information."
-                f"2. The quiz should be at least 10 questions long."
-                f"3. The quiz should be in the form of a list of questions and options."
-                f"Format of the quiz:"
-                f"Each question should be start with **Question :***"
-                f"Option should be start with **Option :***"
-                f"Each answer should be like **Answer :*** and only give the option number for the answer"
-                f"Options: 1, 2, 3, 4"
-                f"Answer: Answer"
-            ) 
-
-            chat_completion = client.chat.completions.create(
-                messages=[{"role": "user", "content": content}],
-                model="llama3-70b-8192",
-            )
-        else:
-            print("Transcript found")
-            print(transcript)
-            text_formatted = formatter.format_transcript(transcript)
-
-            text_splitter = RecursiveCharacterTextSplitter(
-                chunk_size=2000,
-                length_function=len,
-                is_separator_regex=False,
-            )
-
-            chunk = text_splitter.create_documents([text_formatted])
-
-            combined_text = ""
-            for i in range(4):
-                combined_text += str(random.choice(chunk))
-
-            content = (
                 f"Generate a quiz based on the following information: Data: {combined_text} "
                 f"Instructions :"
                 f"1. Generate a quiz based on the given information."
-                f"2. The quiz should be at least 10 questions long."
-                f"3. The quiz should be in the form of a list of questions and options."
-                f"Format of the quiz:"
-                f"Each question should be start with **Question :***"
-                f"Option should be start with **Option :***"
-                f"Each answer should be like **Answer :*** and only give the option number for the answer"
-                f"Options: 1, 2, 3, 4"
-                f"Answer: Answer"
-            ) 
-
-            chat_completion = client.chat.completions.create(
-                messages=[{"role": "user", "content": content}],
-                model="llama3-70b-8192",
-            )
+                f"2. The quiz should be in the form of a list of questions and options."
+                f"Here is sample question format:"
+                f"Question 1: question text"
+                f"Option 1: option text"
+                f"Option 2: option text"
+                f"Option 3: option text"
+                f"Option 4: option text"
+                f"Answer: No of option selected like 1, 2, 3, 4"
+                f"Al the quiz should be in the form of the above format only."
+                f"Generate 10 questions."
+            )  
         
-        def parse_quiz(response):
-            question_blocks = re.split(r"\*\*Question \d+:\*\*", response)[1:]
-            parsed_quiz = []
-
-            for block in question_blocks:
-                question_match = re.search(r"^(.*?)\n", block)
-                question_text = question_match.group(1).strip() if question_match else block.strip()
-                
-                options = re.findall(r"\*\*Option (\d+):\*\* (.*?)\n", block)
-                formatted_options = [f"{opt[1]}" for opt in options]
-
-                answer_match = re.search(r"\*\*Answer:\*\* (\d+)", block)
-                answer_option = answer_match.group(1) if answer_match else ""
-
-                parsed_quiz.append({
-                    "question": question_text,
-                    "options": formatted_options,
-                    "answer": answer_option
-                })
-
-            return parsed_quiz
-
+        quiz_response = chat_completion(content)
+        if quiz_response == 429:   
+            print("Too many requests")
+            return JSONResponse({"error": "Too many requests, it pass Request rate limit or Token rate limit"})
+        elif chat_response == 400:   
+            print("Messages have 39388 tokens, which exceeds the max limit of 16384 tokens.")
+            return JSONResponse({"error": "Messages have 39388 tokens, which exceeds the max limit of 16384 tokens."})
+        elif quiz_response == False:   
+            print("Error in chat completion")
+            return JSONResponse({"error": "Error in generating the summary"})
         
-        print(chat_completion.choices[0].message.content)
-        json_format =  parse_quiz(chat_completion.choices[0].message.content) 
+        print(quiz_response)
+        json_format =  parse_quiz(quiz_response) 
+        print(json_format)
 
         json_format = json.dumps(json_format)
+        print(json_format)
 
         json_compatible_item_data = jsonable_encoder(json_format)
         print(json_compatible_item_data)
@@ -612,118 +478,37 @@ async def v2YTquiz(
 
     except Exception as e:
         print(e)
-        return {"error": str("Could not retrieve a transcript for the video")}
+        return {"error": str("Error occurred while generating the quiz")}
 
-@app.post("/v2/ytsummarize")
-async def v2YTsummarize(
-    item : YTTranscript):
-    try: 
-        print(item)
-        yt_link = item.yt_link
-        if not yt_link:
-            return JSONResponse({"error": "YouTube link is required"})
-        print(yt_link)
-
-        try:
-            video_id = extract_video_id(yt_link)
-        except Exception as e:
-            return {"error": str("Could not retrieve a transcript for the video YT API")}
-
-        try : 
-            transcript = YouTubeTranscriptApi.get_transcript(video_id)
-            formatter = TextFormatter()
-        except Exception as e:
-            transcript = False
-
-        if transcript == False:
-            print("No transcript found")
-            content = (
-                f"Instruction: You are a YouTube summary generator, your job is to generate a summary of the given data. "
-                f"You have to follow the instructions given on how to generate the summary. If no instruction is given, "
-                f"then just generate the summary on the topic : Topic: {item.title} "
-                f"Instruction: The summary should be at least 200 words long and formatted as follows:\n\n"
-                f"<h2>Summary of {item.title}</h2>\n\n"
-                f"<p>Summary text goes here, based on the provided data.</p>\n\n"
-                f"<ul>\n"
-                f"  <li>First key point</li>\n"
-                f"  <li>Second key point</li>\n"
-                f"  <li>Third key point</li>\n"
-                f"  <li>...</li>\n"
-                f"</ul>\n\n"
-                f"<p>Additional summary text or concluding remarks.</p>\n\n"
-                f"<p>Ready to test your knowledge? Take the quiz now and earn coins and XP!</p>"
-            )
-
-            chat_completion = client.chat.completions.create(
-                messages=[{"role": "user", "content": content}],
-                model="llama3-70b-8192",
-            )
-        else:
-            print("Transcript found")
-            print(transcript)
-            text_formatted = formatter.format_transcript(transcript)
-
-            content = (
-                f"Instruction: You are a YouTube summary generator, your job is to generate a summary of the given data. "
-                f"You have to follow the instructions given on how to generate the summary. If no instruction is given, "
-                f"then just generate the summary. Data: {text_formatted} "
-                f"Instruction: The summary should be at least 200 words long and formatted as follows:\n\n"
-                f"<h2>Summary of {item.title}</h2>\n\n"
-                f"<p>Summary text goes here, based on the provided data.</p>\n\n"
-                f"<ul>\n"
-                f"  <li>First key point</li>\n"
-                f"  <li>Second key point</li>\n"
-                f"  <li>Third key point</li>\n"
-                f"  <li>...</li>\n"
-                f"</ul>\n\n"
-                f"<p>Additional summary text or concluding remarks.</p>\n\n"
-                f"<p>Ready to test your knowledge? Take the quiz now and earn coins and XP!</p>"
-            )
-
-            chat_completion = client.chat.completions.create(
-                messages=[{"role": "user", "content": content}],
-                model="llama3-70b-8192",
-            )
-        
-
-        json_compatible_item_data = jsonable_encoder(chat_completion.choices[0].message.content)
-        print(json_compatible_item_data)
-
-        return JSONResponse(content=json_compatible_item_data)
-
-    except Exception as e:
-        print(e)
-        return {"error": str("Could not retrieve a transcript for the video")}
 
 @app.post("/v2/ytQuizAndSummary")
 async def v2YTQuizAndSummary(
     item : YTTranscript) :
     try:
-        print(item)
         yt_link = item.yt_link
+
         if not yt_link:
             return JSONResponse({"error": "YouTube link is required"})
-        print(yt_link)
 
         try:
             video_id = extract_video_id(yt_link)
         except Exception as e:
-            return {"error": str("Could not retrieve a transcript for the video YT API")}
+            return {"error": str("Can not extract video id from the link")}
 
         try : 
             transcript = YouTubeTranscriptApi.get_transcript(video_id)
             formatter = TextFormatter()
+            text_formatted = formatter.format_transcript(transcript)
         except Exception as e:
             transcript = False
 
-        if transcript == False:
-            print("No transcript found")
+        def generate_summary_from_title(title):
             content = (
                 f"Instruction: You are a YouTube summary generator, your job is to generate a summary of the given data. "
                 f"You have to follow the instructions given on how to generate the summary. If no instruction is given, "
                 f"then just generate the summary on the topic : Topic: {item.title} "
                 f"Instruction: The summary should be at least 200 words long and formatted as follows:\n\n"
-                f"<h2>Summary of {item.title}</h2>\n\n"
+                f"<h2>Summary of title</h2>\n\n"
                 f"<p>Summary text goes here, based on the provided data.</p>\n\n"
                 f"<ul>\n"
                 f"  <li>First key point</li>\n"
@@ -735,67 +520,90 @@ async def v2YTQuizAndSummary(
                 f"<p>Ready to test your knowledge? Take the quiz now and earn coins and XP!</p>"
             )
 
-            summery_response = client.chat.completions.create(
-                messages=[{"role": "user", "content": content}],
-                model="llama3-70b-8192",
-            )
-        else:
-            print("Transcript found")
-            print(transcript)
-            text_formatted = formatter.format_transcript(transcript)
+            summery_response = chat_completion(content)
+            if summery_response == 429:   
+                print("Too many requests")
+                return JSONResponse({"error": "Too many requests, it pass Request rate limit or Token rate limit"})
+            elif summery_response == 400:   
+                print("Messages have 39388 tokens, which exceeds the max limit of 16384 tokens.")
+                return JSONResponse({"error": "Messages have 39388 tokens, which exceeds the max limit of 16384 tokens."})
+            elif summery_response == False:   
+                print("Error in chat completion")
+                return JSONResponse({"error": "Error in generating the summary"})
+            return summery_response
+        
+        def generate_quiz_from_summary(summary):
+            content = (
+                f"Generate a quiz based on the following information: Data: {summary} "
+                f"Instructions :"
+                f"1. Generate a quiz based on the given information."
+                f"2. The quiz should be in the form of a list of questions and options."
+                f"3. Ignore the html tags in the data, they should not be included in the quiz."
+                f"Here is sample question format:"
+                f"Question 1: question text"
+                f"Option 1: option text"
+                f"Option 2: option text"
+                f"Option 3: option text"
+                f"Option 4: option text"
+                f"Answer: No of option selected like 1, 2, 3, 4"
+                f"Al the quiz should be in the form of the above format only."
+                f"Generate 10 questions."
+            ) 
 
+            quiz_response = chat_completion(content)
+            if quiz_response == 429:   
+                print("Too many requests")
+                return JSONResponse({"error": "Too many requests, it pass Request rate limit or Token rate limit"})
+            elif quiz_response == 400:   
+                print("Messages have 39388 tokens, which exceeds the max limit of 16384 tokens.")
+                return JSONResponse({"error": "Messages have 39388 tokens, which exceeds the max limit of 16384 tokens."})
+            elif quiz_response == False:   
+                print("Error in chat completion")
+                return JSONResponse({"error": "Error in generating the summary"})
+
+            json_format =  parse_quiz(quiz_response)
+            json_format = json.dumps(json_format)
+
+            return {
+                "summery" : summary,
+                "quiz" : json_format
+            }
+
+        if transcript == False:
+            summery_response = generate_summary_from_title(item.title)
+            return generate_quiz_from_summary(summery_response)
+        else:
             content = (
                 f"Instruction: You are a YouTube summary generator, your job is to generate a summary of the given data. "
                 f"You have to follow the instructions given on how to generate the summary. If no instruction is given, "
                 f"then just generate the summary. Data: {text_formatted} "
-                f"Instruction: The summary should be at least 200 words long and formatted as follows:\n\n"
-                f"<h2>Summary of {item.title}</h2>\n\n"
-                f"<p>Summary text goes here, based on the provided data.</p>\n\n"
-                f"<ul>\n"
-                f"  <li>First key point</li>\n"
-                f"  <li>Second key point</li>\n"
-                f"  <li>Third key point</li>\n"
-                f"  <li>...</li>\n"
-                f"</ul>\n\n"
-                f"<p>Additional summary text or concluding remarks.</p>\n\n"
+                f"Instruction: The summary should be at least 200 words long and formatted as follows:"
+                f"<h2>Summary title</h2>"
+                f"<p>Summary text goes here, based on the provided data.</p>"
+                f"<ul>"
+                f"  <li>[Add Relevant Emojis] First key point</li>"
+                f"  <li>[Add Relevant Emojis] Second key point</li>"
+                f"  <li>[Add Relevant Emojis] Third key point</li>"
+                f"  <li>...</li>"
+                f"</ul>"
+                f"<p>Additional summary text or concluding remarks.</p>"
                 f"<p>Ready to test your knowledge? Take the quiz now and earn coins and XP!</p>"
             )
 
-            summery_response = client.chat.completions.create(
-                messages=[{"role": "user", "content": content}],
-                model="llama3-70b-8192",
-            )
-
-        content = (
-            f"Generate a quiz based on the following information: Data: {summery_response.choices[0].message.content} "
-            f"Instructions :"
-            f"1. Generate a quiz based on the given information."
-            f"2. The quiz should be at least 10 questions long."
-            f"3. The quiz should be in the form of a list of questions and options."
-            f"Format of the quiz:"
-            f"Each question should be start with **Question :***"
-            f"Option should be start with **Option :***"
-            f"Each answer should be like **Answer :*** and only give the option number for the answer"
-            f"Options: 1, 2, 3, 4"
-            f"Answer: Answer"
-        ) 
-
-        quiz_response = client.chat.completions.create(
-            messages=[{"role": "user", "content": content}],
-            model="llama3-70b-8192",
-        )
-
-        print(quiz_response.choices[0].message.content)
-        json_format =  parse_quiz(quiz_response.choices[0].message.content)
-
-        json_format = json.dumps(json_format)
-
-        json_compatible_item_data = jsonable_encoder({
-            "summery" : summery_response.choices[0].message.content,
-            "quiz" : json_format
-        })
-
-        return JSONResponse( )
+            summery_response = chat_completion(content)
+            if summery_response == 429:   
+                print("Too many requests")
+                return JSONResponse({"error": "Too many requests, it pass Request rate limit or Token rate limit"})
+            elif summery_response == 400:   
+                print("Messages have 39388 tokens, which exceeds the max limit of 16384 tokens.")
+                title_summery_response = generate_summary_from_title(item.title)
+                return generate_quiz_from_summary(title_summery_response)
+            elif summery_response == False:   
+                print("Error in chat completion")
+                return JSONResponse({"error": "Error in generating the summary"})
+            else: 
+                return generate_quiz_from_summary(summery_response)
+       
     except Exception as e:
         print(e)
         return {"error": str("Error occurred while generating the quiz and summary")}
