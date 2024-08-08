@@ -8,7 +8,6 @@ load_dotenv()
 url = "https://api.perplexity.ai/chat/completions"
 
 def chat_completion(prompt):
-    print(prompt)
     payload = {
         "model": "mixtral-8x7b-instruct",
         "messages": [
@@ -28,7 +27,6 @@ def chat_completion(prompt):
 
     if response.status_code == 200:
         json_response = response.json()
-        print(json_response.get("choices")[0].get("message").get("content"))
         return json_response.get("choices")[0].get("message").get("content")
     elif response.status_code == 429:
         return response.status_code

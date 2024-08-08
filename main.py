@@ -110,7 +110,6 @@ class DocumentStore:
 
 @app.get("/")
 def read_root():
-    print("Health Check")
     return {"status": "ok"}
 
 
@@ -294,19 +293,12 @@ async def quiz(
             print("Error in chat completion")
             return JSONResponse({"error": "Error in generating the summary"})
 
-        
-        print(quiz_response)
         json_format =  parse_quiz(quiz_response) 
-        print(json_format)
-
         json_format = json.dumps(json_format)
-        print(json_format)
 
         json_compatible_item_data = jsonable_encoder(json_format)
-        print(json_compatible_item_data)
 
         return JSONResponse(content=json_compatible_item_data)
-
     except Exception as e:
         print(e)
         return {"error": "Error occurred while generating the quiz"}
@@ -358,8 +350,6 @@ async def file_chat(
     yt_link: Annotated[str, Form()] = None,
     userPrompt: Annotated[str, Form()] = None):
     try:
-        print(yt_link)
-        print(userPrompt)
         if not yt_link:
             return JSONResponse({"error": "YouTube link is required"})
 
@@ -464,15 +454,11 @@ async def quiz(
             print("Error in chat completion")
             return JSONResponse({"error": "Error in generating the summary"})
         
-        print(quiz_response)
         json_format =  parse_quiz(quiz_response) 
-        print(json_format)
 
         json_format = json.dumps(json_format)
-        print(json_format)
 
         json_compatible_item_data = jsonable_encoder(json_format)
-        print(json_compatible_item_data)
 
         return JSONResponse(content=json_compatible_item_data)
 
