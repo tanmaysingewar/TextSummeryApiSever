@@ -31,6 +31,8 @@ from chat_completion import chat_completion
 import requests
 import json
 
+from get_proxy import get_proxy
+
 UPLOAD_DIR = Path() / "upload"
 
 client = Groq(
@@ -482,10 +484,12 @@ async def v2YTQuizAndSummary(
             return {"error": str("Can not extract video id from the link")}
 
         try : 
-            transcript = YouTubeTranscriptApi.get_transcript(video_id)
+            transcript = YouTubeTranscriptApi.get_transcript(video_id,proxies={'http':get_proxy()})
             formatter = TextFormatter()
             text_formatted = formatter.format_transcript(transcript)
+            print(text_formatted)
         except Exception as e:
+            print(e)
             transcript = False
 
         def generate_summary_from_title(title):
@@ -559,6 +563,7 @@ async def v2YTQuizAndSummary(
             summery_response = generate_summary_from_title(item.title)
             return generate_quiz_from_summary(summery_response)
         else:
+            print("transcript found")
             content = (
                 f"Instruction: You are a YouTube summary generator, your job is to generate a summary of the given data. "
                 f"You have to follow the instructions given on how to generate the summary. If no instruction is given, "

@@ -36,6 +36,15 @@ https://youtu.be/DHjqpvDnNGE?si=49jlB7vXUP9aAonR
 ## remove folder and its content
 sudo rm -rf <folder>
 
+##  git clone
+git clone <url>
+
+## create the file
+touch <file>
+
+## write in the file
+vim <file>
+
 ## Hidden files
 ls -la
 
