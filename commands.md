@@ -33,6 +33,9 @@ https://youtu.be/DHjqpvDnNGE?si=49jlB7vXUP9aAonR
 
 
 # Additional Commands
+## remove folder and its content
+sudo rm -rf <folder>
+
 ## Hidden files
 ls -la
 
