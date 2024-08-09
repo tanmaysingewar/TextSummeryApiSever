@@ -32,6 +32,7 @@ import requests
 import json
 
 from get_proxy import get_proxy
+from ytTranscript import get_yt_transcript
 
 UPLOAD_DIR = Path() / "upload"
 
@@ -484,7 +485,7 @@ async def v2YTQuizAndSummary(
             return {"error": str("Can not extract video id from the link")}
 
         try : 
-            transcript = YouTubeTranscriptApi.get_transcript(video_id,proxies={'http':get_proxy()})
+            transcript = YouTubeTranscriptApi.get_transcript(video_id)
             formatter = TextFormatter()
             text_formatted = formatter.format_transcript(transcript)
             print(text_formatted)
@@ -529,6 +530,7 @@ async def v2YTQuizAndSummary(
                 f"1. Generate a quiz based on the given information."
                 f"2. The quiz should be in the form of a list of questions and options."
                 f"3. Ignore the html tags in the data, they should not be included in the quiz."
+                f"4. The quiz should be having 10 questions its very very important."
                 f"Here is sample question format:"
                 f"Question 1: question text"
                 f"Option 1: option text"
@@ -537,7 +539,6 @@ async def v2YTQuizAndSummary(
                 f"Option 4: option text"
                 f"Answer: No of option selected like 1, 2, 3, 4"
                 f"Al the quiz should be in the form of the above format only."
-                f"Generate 10 questions."
             ) 
 
             quiz_response = chat_completion(content)
@@ -579,6 +580,138 @@ async def v2YTQuizAndSummary(
                 f"</ul>"
                 f"<p>Additional summary text or concluding remarks.</p>"
                 f"<p>Ready to test your knowledge? Take the quiz now and earn coins and XP!</p>"
+                f"Note: Emojis should not be code like this :smile: but should be like this 😄"
+            )
+
+            summery_response = chat_completion(content)
+            if summery_response == 429:   
+                print("Too many requests")
+                return JSONResponse({"error": "Too many requests, it pass Request rate limit or Token rate limit"})
+            elif summery_response == 400:   
+                print("Messages have 39388 tokens, which exceeds the max limit of 16384 tokens.")
+                title_summery_response = generate_summary_from_title(item.title)
+                return generate_quiz_from_summary(title_summery_response)
+            elif summery_response == False:   
+                print("Error in chat completion")
+                return JSONResponse({"error": "Error in generating the summary"})
+            else: 
+                return generate_quiz_from_summary(summery_response)
+       
+    except Exception as e:
+        print(e)
+        return {"error": str("Error occurred while generating the quiz and summary")}
+
+
+@app.post("/v3/ytQuizAndSummary")
+async def v2YTQuizAndSummary(
+    item : YTTranscript) :
+    try:
+        yt_link = item.yt_link
+
+        if not yt_link:
+            return JSONResponse({"error": "YouTube link is required"})
+
+        try:
+            video_id = extract_video_id(yt_link)
+        except Exception as e:
+            return {"error": str("Can not extract video id from the link")}
+
+        try : 
+            transcript = get_yt_transcript(yt_link)
+            text_formatted = transcript
+            print(text_formatted)
+        except Exception as e:
+            print(e)
+            transcript = False
+
+        def generate_summary_from_title(title):
+            content = (
+                f"Instruction: You are a YouTube summary generator, your job is to generate a summary of the given data. "
+                f"You have to follow the instructions given on how to generate the summary. If no instruction is given, "
+                f"then just generate the summary on the topic : Topic: {item.title} "
+                f"Instruction: The summary should be at least 200 words long and formatted as follows:\n\n"
+                f"<h2>Summary of title</h2>\n\n"
+                f"<p>Summary text goes here, based on the provided data.</p>\n\n"
+                f"<ul>\n"
+                f"  <li>[Add Relevant Emojis] First key point</li>\n"
+                f"  <li>[Add Relevant Emojis] Second key point</li>\n"
+                f"  <li>[Add Relevant Emojis] Third key point</li>\n"
+                f"  <li>...</li>\n"
+                f"</ul>\n\n"
+                f"<p>Additional summary text or concluding remarks.</p>\n\n"
+                f"<p>Ready to test your knowledge? Take the quiz now and earn coins and XP!</p>"
+            )
+
+            summery_response = chat_completion(content)
+            if summery_response == 429:   
+                print("Too many requests")
+                return JSONResponse({"error": "Too many requests, it pass Request rate limit or Token rate limit"})
+            elif summery_response == 400:   
+                print("Messages have 39388 tokens, which exceeds the max limit of 16384 tokens.")
+                return JSONResponse({"error": "Messages have 39388 tokens, which exceeds the max limit of 16384 tokens."})
+            elif summery_response == False:   
+                print("Error in chat completion")
+                return JSONResponse({"error": "Error in generating the summary"})
+            return summery_response
+        
+        def generate_quiz_from_summary(summary):
+            content = (
+                f"Generate a quiz based on the following information: Data: {summary} "
+                f"Instructions :"
+                f"1. Generate a quiz based on the given information."
+                f"2. The quiz should be in the form of a list of questions and options."
+                f"3. Ignore the html tags in the data, they should not be included in the quiz."
+                f"4. The quiz should be having 10 questions its very very important."
+                f"Here is sample question format:"
+                f"Question 1: question text"
+                f"Option 1: option text"
+                f"Option 2: option text"
+                f"Option 3: option text"
+                f"Option 4: option text"
+                f"Answer: No of option selected like 1, 2, 3, 4"
+                f"Al the quiz should be in the form of the above format only."
+            ) 
+
+            quiz_response = chat_completion(content)
+            if quiz_response == 429:   
+                print("Too many requests")
+                return JSONResponse({"error": "Too many requests, it pass Request rate limit or Token rate limit"})
+            elif quiz_response == 400:   
+                print("Messages have 39388 tokens, which exceeds the max limit of 16384 tokens.")
+                return JSONResponse({"error": "Messages have 39388 tokens, which exceeds the max limit of 16384 tokens."})
+            elif quiz_response == False:   
+                print("Error in chat completion")
+                return JSONResponse({"error": "Error in generating the summary"})
+
+            json_format =  parse_quiz(quiz_response)
+            json_format = json.dumps(json_format)
+
+            return {
+                "summery" : summary,
+                "quiz" : json_format
+            }
+
+        if transcript == False:
+            summery_response = generate_summary_from_title(item.title)
+            return generate_quiz_from_summary(summery_response)
+        else:
+            print("transcript found")
+            content = (
+                f"Instruction: You are a YouTube summary generator, your job is to generate a summary of the given data. "
+                f"You have to follow the instructions given on how to generate the summary. If no instruction is given, "
+                f"then just generate the summary. Data: {text_formatted} "
+                f"Instruction: The summary should be at least 200 words long and formatted as follows:"
+                f"<h2>Summary title</h2>"
+                f"<p>Summary text goes here, based on the provided data.</p>"
+                f"<ul>"
+                f"  <li>[Add Relevant Emojis] First key point</li>"
+                f"  <li>[Add Relevant Emojis] Second key point</li>"
+                f"  <li>[Add Relevant Emojis] Third key point</li>"
+                f"  <li>...</li>"
+                f"</ul>"
+                f"<p>Additional summary text or concluding remarks.</p>"
+                f"<p>Ready to test your knowledge? Take the quiz now and earn coins and XP!</p>"
+                f"Note: Emojis should not be code like this :smile: but should be like this 😄"
             )
 
             summery_response = chat_completion(content)
