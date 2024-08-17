@@ -495,10 +495,10 @@ async def v2YTQuizAndSummary(
             content = (
                 f"Generate a quiz based on the following information: Data: {summary} "
                 f"Instructions :"
-                f"1. Generate a quiz based on the given information."
+                f"1. Generate a quiz based on above given information with questions that test understanding rather than memory."
                 f"2. The quiz should be in the form of a list of questions and options."
                 f"3. Ignore the html tags in the data, they should not be included in the quiz."
-                f"4. The quiz should be having exactly 5 questions its very very important."
+                f"4. The quiz should have exactly 5 questions."
                 f"Format of the quiz:"
                 f"**Question :** [question text]"
                 f"**Option :** 1. [option text]"
@@ -512,7 +512,6 @@ async def v2YTQuizAndSummary(
                 f"Each Option should be start with **Option :***"
                 f"Each answer should be like **Answer :*** and only give the option number for the answer"
                 f"All the quiz should be in the form of the above format only."
-                f"Dont add questions on year, month, day, etc."
             )  
 
             quiz_response = chat_completion(content)
