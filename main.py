@@ -7,7 +7,6 @@ from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api.formatters import TextFormatter
 
 import os
-from groq import Groq
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
@@ -36,9 +35,6 @@ from ytTranscript import get_yt_transcript
 
 UPLOAD_DIR = Path() / "upload"
 
-client = Groq(
-    api_key="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",
-)
 
 app = FastAPI()
 
@@ -470,6 +466,10 @@ async def quiz(
         return {"error": str("Error occurred while generating the quiz")}
 
 
+
+
+
+
 @app.post("/v2/ytQuizAndSummary")
 async def v2YTQuizAndSummary(
     item : YTTranscript) :
@@ -509,6 +509,7 @@ async def v2YTQuizAndSummary(
                 f"</ul>\n\n"
                 f"<p>Additional summary text or concluding remarks.</p>\n\n"
                 f"<p>Ready to test your knowledge? Take the quiz now and earn coins and XP!</p>"
+                f"Note : Dont include Summary word in the summary title, just title of summary."
             )
 
             summery_response = chat_completion(content)
@@ -600,7 +601,6 @@ async def v2YTQuizAndSummary(
     except Exception as e:
         print(e)
         return {"error": str("Error occurred while generating the quiz and summary")}
-
 
 @app.post("/v3/ytQuizAndSummary")
 async def v2YTQuizAndSummary(
@@ -633,13 +633,14 @@ async def v2YTQuizAndSummary(
                 f"<h2>Summary of title</h2>\n\n"
                 f"<p>Summary text goes here, based on the provided data.</p>\n\n"
                 f"<ul>\n"
-                f"  <li>[Add Relevant Emojis] First key point</li>\n"
-                f"  <li>[Add Relevant Emojis] Second key point</li>\n"
-                f"  <li>[Add Relevant Emojis] Third key point</li>\n"
+                f"  <li>First key point</li>\n"
+                f"  <li>Second key point</li>\n"
+                f"  <li>Third key point</li>\n"
                 f"  <li>...</li>\n"
                 f"</ul>\n\n"
                 f"<p>Additional summary text or concluding remarks.</p>\n\n"
                 f"<p>Ready to test your knowledge? Take the quiz now and earn coins and XP!</p>"
+                f"Note : Dont include Summary word in the summary title, just title of summary."
             )
 
             summery_response = chat_completion(content)
@@ -661,7 +662,7 @@ async def v2YTQuizAndSummary(
                 f"1. Generate a quiz based on the given information."
                 f"2. The quiz should be in the form of a list of questions and options."
                 f"3. Ignore the html tags in the data, they should not be included in the quiz."
-                f"4. The quiz should be having 10 questions its very very important."
+                f"4. The quiz should be having exactly 5 questions its very very important."
                 f"Here is sample question format:"
                 f"Question 1: question text"
                 f"Option 1: option text"
@@ -669,10 +670,14 @@ async def v2YTQuizAndSummary(
                 f"Option 3: option text"
                 f"Option 4: option text"
                 f"Answer: No of option selected like 1, 2, 3, 4"
-                f"Al the quiz should be in the form of the above format only."
+                f"All the quiz should be in the form of the above format only."
+                f"Dont add questions on year, month, day, etc."
+                f"Dont include **bold** text in the quiz."
+
             ) 
 
             quiz_response = chat_completion(content)
+            print(quiz_response)
             if quiz_response == 429:   
                 print("Too many requests")
                 return JSONResponse({"error": "Too many requests, it pass Request rate limit or Token rate limit"})
@@ -704,14 +709,15 @@ async def v2YTQuizAndSummary(
                 f"<h2>Summary title</h2>"
                 f"<p>Summary text goes here, based on the provided data.</p>"
                 f"<ul>"
-                f"  <li>[Add Relevant Emojis] First key point</li>"
-                f"  <li>[Add Relevant Emojis] Second key point</li>"
-                f"  <li>[Add Relevant Emojis] Third key point</li>"
+                f"  <li>First key point</li>"
+                f"  <li>Second key point</li>"
+                f"  <li>Third key point</li>"
                 f"  <li>...</li>"
                 f"</ul>"
                 f"<p>Additional summary text or concluding remarks.</p>"
                 f"<p>Ready to test your knowledge? Take the quiz now and earn coins and XP!</p>"
-                f"Note: Emojis should not be code like this :smile: but should be like this 😄"
+                f"Dont include the emojis in the summary."
+                f"Note : Dont include Summary word in the summary title, just title of summary."
             )
 
             summery_response = chat_completion(content)
@@ -731,3 +737,5 @@ async def v2YTQuizAndSummary(
     except Exception as e:
         print(e)
         return {"error": str("Error occurred while generating the quiz and summary")}
+
+        

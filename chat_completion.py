@@ -10,7 +10,7 @@ url = "https://api.perplexity.ai/chat/completions"
 def chat_completion(prompt):
     print(prompt)
     payload = {
-        "model": "mixtral-8x7b-instruct",
+        "model": "llama-3.1-8b-instruct",
         "messages": [
             {
                 "role": "user",
