@@ -17,6 +17,8 @@ def get_yt_transcript(url):
     }
 
     response = requests.post(os.getenv('YT_API_URL'), headers=headers, json=body)
+    print(response.status_code)
+    print(response.text)
 
     # Load the JSON data
     data = response.json()
@@ -30,5 +32,3 @@ def get_yt_transcript(url):
     return transcript
 
 __all__ = ["get_yt_transcript"]
-
-get_yt_transcript("https://www.youtube.com/watch?v=DHjqpvDnNGE")

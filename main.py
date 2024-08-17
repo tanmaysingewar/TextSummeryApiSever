@@ -63,20 +63,21 @@ def extract_video_id(url):
     return None
 
 def parse_quiz(response):
-    question_blocks = re.split(r"Question \d+:", response)[1:]
+    # Split the response based on **Question :** which is the format in the quiz.
+    question_blocks = re.split(r"\*\*Question :\*\*", response)[1:]
     parsed_quiz = []
 
     for block in question_blocks:
         # Extract the question text
-        question_match = re.search(r"^(.*?)\n", block.strip())
+        question_match = re.search(r"^(.*?)\n", block)
         question_text = question_match.group(1).strip() if question_match else block.strip()
-        
-        # Extract the options
-        options = re.findall(r"Option \d+: (.*?)\n", block)
-        formatted_options = [opt.strip() for opt in options]
+
+        # Extract options
+        options = re.findall(r"\*\*Option :\*\* (.*?)\n", block)
+        formatted_options = [opt for opt in options]
 
         # Extract the answer
-        answer_match = re.search(r"Answer: (\d+)", block)
+        answer_match = re.search(r"\*\*Answer :\*\* (\d+)", block)
         answer_option = answer_match.group(1) if answer_match else ""
 
         parsed_quiz.append({
@@ -252,52 +253,46 @@ async def quiz(
         else:
             return {"error": "Unsupported file type"}
 
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=2000,
-            length_function=len,
-            is_separator_regex=False,
-        )
-
-        chunk = text_splitter.create_documents([text])
-
-        combined_text = ""
-        for i in range(4):
-            combined_text += str(random.choice(chunk))
-
-
         content = (
-                f"Generate a quiz based on the following information: Data: {combined_text} "
-                f"Instructions :"
-                f"1. Generate a quiz based on the given information."
-                f"2. The quiz should be in the form of a list of questions and options."
-                f"Here is sample question format:"
-                f"Question 1: question text"
-                f"Option 1: option text"
-                f"Option 2: option text"
-                f"Option 3: option text"
-                f"Option 4: option text"
-                f"Answer: No of option selected like 1, 2, 3, 4"
-                f"Al the quiz should be in the form of the above format only."
-                f"Generate 10 questions."
-            )  
+            f"Generate a quiz based on the following information: Data: {text} "
+            f"Instructions :"
+            f"1. Generate a quiz based on the given information."
+            f"2. The quiz should be in the form of a list of questions and options."
+            f"3. Ignore the html tags in the data, they should not be included in the quiz."
+            f"4. The quiz should be having exactly 10 questions its very very important."
+            f"Format of the quiz:"
+            f"**Question :** [question text]"
+            f"**Option :** 1. [option text]"
+            f"**Option :** 2. [option text]"
+            f"**Option :** 3. [option text]"
+            f"**Option :** 4. [option text]"
+            f"**Answer :** [answer number]"
+            f"All the quiz should be in the form of the above format only."
+            f"Dont add questions on year, month, day, etc."
+            f"Each question should be start with **Question :***"
+            f"Each Option should be start with **Option :***"
+            f"Each answer should be like **Answer :*** and only give the option number for the answer"
+            f"All the quiz should be in the form of the above format only."
+            f"Dont add questions on year, month, day, etc."
+        )  
+
 
         quiz_response = chat_completion(content)
+        print(quiz_response)
         if quiz_response == 429:   
             print("Too many requests")
             return JSONResponse({"error": "Too many requests, it pass Request rate limit or Token rate limit"})
         elif quiz_response == 400:
             print("Messages have 39388 tokens, which exceeds the max limit of 16384 tokens.")
-            return JSONResponse({"error": "Messages have 39388 tokens, which exceeds the max limit of 16384 tokens."})
+            return JSONResponse({"error": "Exceeds the max limit of tokens."})
         elif quiz_response == False:   
             print("Error in chat completion")
             return JSONResponse({"error": "Error in generating the summary"})
 
         json_format =  parse_quiz(quiz_response) 
-        json_format = json.dumps(json_format)
+        print(json_format)
 
-        json_compatible_item_data = jsonable_encoder(json_format)
-
-        return JSONResponse(content=json_compatible_item_data)
+        return JSONResponse(content=json_format)
     except Exception as e:
         print(e)
         return {"error": "Error occurred while generating the quiz"}
@@ -310,15 +305,11 @@ def yt_summary(
         if not yt_link:
             return JSONResponse({"error": "YouTube link is required"})
 
-        try :
-            video_id = extract_video_id(yt_link)
+        try:
+            transcript = get_yt_transcript(yt_link)
         except Exception as e:
-            return {"error": str("Could not retrieve a transcript for the video YT API")}
-
-        transcript = YouTubeTranscriptApi.get_transcript(video_id)
-        formatter = TextFormatter()
-
-        text_formatted = formatter.format_transcript(transcript)
+            print(e)
+            return {"error": str("Error occurred while retrieving the transcript")}
 
         content = (
             f"Instruction: You are a YouTube summary generator, your job is to generate a summary of the given data. "
@@ -353,18 +344,13 @@ async def file_chat(
             return JSONResponse({"error": "YouTube link is required"})
 
         try:
-            video_id = extract_video_id(yt_link)
+            transcript = get_yt_transcript(yt_link)
         except Exception as e:
             return {"error": str("Could not retrieve a transcript for the video")}
 
-        transcript = YouTubeTranscriptApi.get_transcript(video_id)
-        formatter = TextFormatter()
-
-        text_formatted = formatter.format_transcript(transcript)
-
         store = DocumentStore()
         
-        store.add_document(text_formatted)
+        store.add_document(transcript)
 
         if not userPrompt:
             userPrompt = ""
@@ -413,40 +399,34 @@ async def quiz(
 
         text_formatted = formatter.format_transcript(transcript)
 
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=2000,
-            length_function=len,
-            is_separator_regex=False,
-        )
-
-        chunk = text_splitter.create_documents([text_formatted])
-
-        combined_text = ""
-        for i in range(4):
-            combined_text += str(random.choice(chunk))
-
-
         content = (
-                f"Generate a quiz based on the following information: Data: {combined_text} "
-                f"Instructions :"
-                f"1. Generate a quiz based on the given information."
-                f"2. The quiz should be in the form of a list of questions and options."
-                f"Here is sample question format:"
-                f"Question 1: question text"
-                f"Option 1: option text"
-                f"Option 2: option text"
-                f"Option 3: option text"
-                f"Option 4: option text"
-                f"Answer: No of option selected like 1, 2, 3, 4"
-                f"Al the quiz should be in the form of the above format only."
-                f"Generate 10 questions."
-            )  
+            f"Generate a quiz based on the following information: Data: {text_formatted} "
+            f"Instructions :"
+            f"1. Generate a quiz based on the given information."
+            f"2. The quiz should be in the form of a list of questions and options."
+            f"3. Ignore the html tags in the data, they should not be included in the quiz."
+            f"4. The quiz should be having exactly 10 questions its very very important."
+            f"Format of the quiz:"
+            f"**Question :** [question text]"
+            f"**Option :** 1. [option text]"
+            f"**Option :** 2. [option text]"
+            f"**Option :** 3. [option text]"
+            f"**Option :** 4. [option text]"
+            f"**Answer :** [answer number]"
+            f"All the quiz should be in the form of the above format only."
+            f"Dont add questions on year, month, day, etc."
+            f"Each question should be start with **Question :***"
+            f"Each Option should be start with **Option :***"
+            f"Each answer should be like **Answer :*** and only give the option number for the answer"
+            f"All the quiz should be in the form of the above format only."
+            f"Dont add questions on year, month, day, etc."
+        )  
         
         quiz_response = chat_completion(content)
         if quiz_response == 429:   
             print("Too many requests")
             return JSONResponse({"error": "Too many requests, it pass Request rate limit or Token rate limit"})
-        elif chat_response == 400:   
+        elif quiz_response == 400:   
             print("Messages have 39388 tokens, which exceeds the max limit of 16384 tokens.")
             return JSONResponse({"error": "Messages have 39388 tokens, which exceeds the max limit of 16384 tokens."})
         elif quiz_response == False:   
@@ -455,152 +435,12 @@ async def quiz(
         
         json_format =  parse_quiz(quiz_response) 
 
-        json_format = json.dumps(json_format)
-
-        json_compatible_item_data = jsonable_encoder(json_format)
-
-        return JSONResponse(content=json_compatible_item_data)
+        return JSONResponse(content=json_format)
 
     except Exception as e:
         print(e)
         return {"error": str("Error occurred while generating the quiz")}
 
-
-
-
-
-
-@app.post("/v2/ytQuizAndSummary")
-async def v2YTQuizAndSummary(
-    item : YTTranscript) :
-    try:
-        yt_link = item.yt_link
-
-        if not yt_link:
-            return JSONResponse({"error": "YouTube link is required"})
-
-        try:
-            video_id = extract_video_id(yt_link)
-        except Exception as e:
-            return {"error": str("Can not extract video id from the link")}
-
-        try : 
-            transcript = YouTubeTranscriptApi.get_transcript(video_id)
-            formatter = TextFormatter()
-            text_formatted = formatter.format_transcript(transcript)
-            print(text_formatted)
-        except Exception as e:
-            print(e)
-            transcript = False
-
-        def generate_summary_from_title(title):
-            content = (
-                f"Instruction: You are a YouTube summary generator, your job is to generate a summary of the given data. "
-                f"You have to follow the instructions given on how to generate the summary. If no instruction is given, "
-                f"then just generate the summary on the topic : Topic: {item.title} "
-                f"Instruction: The summary should be at least 200 words long and formatted as follows:\n\n"
-                f"<h2>Summary of title</h2>\n\n"
-                f"<p>Summary text goes here, based on the provided data.</p>\n\n"
-                f"<ul>\n"
-                f"  <li>[Add Relevant Emojis] First key point</li>\n"
-                f"  <li>[Add Relevant Emojis] Second key point</li>\n"
-                f"  <li>[Add Relevant Emojis] Third key point</li>\n"
-                f"  <li>...</li>\n"
-                f"</ul>\n\n"
-                f"<p>Additional summary text or concluding remarks.</p>\n\n"
-                f"<p>Ready to test your knowledge? Take the quiz now and earn coins and XP!</p>"
-                f"Note : Dont include Summary word in the summary title, just title of summary."
-            )
-
-            summery_response = chat_completion(content)
-            if summery_response == 429:   
-                print("Too many requests")
-                return JSONResponse({"error": "Too many requests, it pass Request rate limit or Token rate limit"})
-            elif summery_response == 400:   
-                print("Messages have 39388 tokens, which exceeds the max limit of 16384 tokens.")
-                return JSONResponse({"error": "Messages have 39388 tokens, which exceeds the max limit of 16384 tokens."})
-            elif summery_response == False:   
-                print("Error in chat completion")
-                return JSONResponse({"error": "Error in generating the summary"})
-            return summery_response
-        
-        def generate_quiz_from_summary(summary):
-            content = (
-                f"Generate a quiz based on the following information: Data: {summary} "
-                f"Instructions :"
-                f"1. Generate a quiz based on the given information."
-                f"2. The quiz should be in the form of a list of questions and options."
-                f"3. Ignore the html tags in the data, they should not be included in the quiz."
-                f"4. The quiz should be having 10 questions its very very important."
-                f"Here is sample question format:"
-                f"Question 1: question text"
-                f"Option 1: option text"
-                f"Option 2: option text"
-                f"Option 3: option text"
-                f"Option 4: option text"
-                f"Answer: No of option selected like 1, 2, 3, 4"
-                f"Al the quiz should be in the form of the above format only."
-            ) 
-
-            quiz_response = chat_completion(content)
-            if quiz_response == 429:   
-                print("Too many requests")
-                return JSONResponse({"error": "Too many requests, it pass Request rate limit or Token rate limit"})
-            elif quiz_response == 400:   
-                print("Messages have 39388 tokens, which exceeds the max limit of 16384 tokens.")
-                return JSONResponse({"error": "Messages have 39388 tokens, which exceeds the max limit of 16384 tokens."})
-            elif quiz_response == False:   
-                print("Error in chat completion")
-                return JSONResponse({"error": "Error in generating the summary"})
-
-            json_format =  parse_quiz(quiz_response)
-            json_format = json.dumps(json_format)
-
-            return {
-                "summery" : summary,
-                "quiz" : json_format
-            }
-
-        if transcript == False:
-            summery_response = generate_summary_from_title(item.title)
-            return generate_quiz_from_summary(summery_response)
-        else:
-            print("transcript found")
-            content = (
-                f"Instruction: You are a YouTube summary generator, your job is to generate a summary of the given data. "
-                f"You have to follow the instructions given on how to generate the summary. If no instruction is given, "
-                f"then just generate the summary. Data: {text_formatted} "
-                f"Instruction: The summary should be at least 200 words long and formatted as follows:"
-                f"<h2>Summary title</h2>"
-                f"<p>Summary text goes here, based on the provided data.</p>"
-                f"<ul>"
-                f"  <li>[Add Relevant Emojis] First key point</li>"
-                f"  <li>[Add Relevant Emojis] Second key point</li>"
-                f"  <li>[Add Relevant Emojis] Third key point</li>"
-                f"  <li>...</li>"
-                f"</ul>"
-                f"<p>Additional summary text or concluding remarks.</p>"
-                f"<p>Ready to test your knowledge? Take the quiz now and earn coins and XP!</p>"
-                f"Note: Emojis should not be code like this :smile: but should be like this 😄"
-            )
-
-            summery_response = chat_completion(content)
-            if summery_response == 429:   
-                print("Too many requests")
-                return JSONResponse({"error": "Too many requests, it pass Request rate limit or Token rate limit"})
-            elif summery_response == 400:   
-                print("Messages have 39388 tokens, which exceeds the max limit of 16384 tokens.")
-                title_summery_response = generate_summary_from_title(item.title)
-                return generate_quiz_from_summary(title_summery_response)
-            elif summery_response == False:   
-                print("Error in chat completion")
-                return JSONResponse({"error": "Error in generating the summary"})
-            else: 
-                return generate_quiz_from_summary(summery_response)
-       
-    except Exception as e:
-        print(e)
-        return {"error": str("Error occurred while generating the quiz and summary")}
 
 @app.post("/v3/ytQuizAndSummary")
 async def v2YTQuizAndSummary(
@@ -662,19 +502,22 @@ async def v2YTQuizAndSummary(
                 f"1. Generate a quiz based on the given information."
                 f"2. The quiz should be in the form of a list of questions and options."
                 f"3. Ignore the html tags in the data, they should not be included in the quiz."
-                f"4. The quiz should be having exactly 5 questions its very very important."
-                f"Here is sample question format:"
-                f"Question 1: question text"
-                f"Option 1: option text"
-                f"Option 2: option text"
-                f"Option 3: option text"
-                f"Option 4: option text"
-                f"Answer: No of option selected like 1, 2, 3, 4"
+                f"4. The quiz should be having exactly 10 questions its very very important."
+                f"Format of the quiz:"
+                f"**Question :** [question text]"
+                f"**Option :** 1. [option text]"
+                f"**Option :** 2. [option text]"
+                f"**Option :** 3. [option text]"
+                f"**Option :** 4. [option text]"
+                f"**Answer :** [answer number]"
                 f"All the quiz should be in the form of the above format only."
                 f"Dont add questions on year, month, day, etc."
-                f"Dont include **bold** text in the quiz."
-
-            ) 
+                f"Each question should be start with **Question :***"
+                f"Each Option should be start with **Option :***"
+                f"Each answer should be like **Answer :*** and only give the option number for the answer"
+                f"All the quiz should be in the form of the above format only."
+                f"Dont add questions on year, month, day, etc."
+            )  
 
             quiz_response = chat_completion(content)
             print(quiz_response)
