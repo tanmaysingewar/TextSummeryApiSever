@@ -390,17 +390,13 @@ async def quiz(
             return JSONResponse({"error": "YouTube link is required"})
 
         try:
-            video_id = extract_video_id(yt_link)
+            transcript = get_yt_transcript(yt_link)
         except Exception as e:
-            return {"error": str("Could not retrieve a transcript for the video YT API")}
-
-        transcript = YouTubeTranscriptApi.get_transcript(video_id)
-        formatter = TextFormatter()
-
-        text_formatted = formatter.format_transcript(transcript)
+            print(e)
+            return {"error": str("Error occurred while retrieving the transcript")}
 
         content = (
-            f"Generate a quiz based on the following information: Data: {text_formatted} "
+            f"Generate a quiz based on the following information: Data: {transcript} "
             f"Instructions :"
             f"1. Generate a quiz based on the given information."
             f"2. The quiz should be in the form of a list of questions and options."
