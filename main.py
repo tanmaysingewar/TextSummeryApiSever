@@ -498,7 +498,7 @@ async def v2YTQuizAndSummary(
                 f"1. Generate a quiz based on the given information."
                 f"2. The quiz should be in the form of a list of questions and options."
                 f"3. Ignore the html tags in the data, they should not be included in the quiz."
-                f"4. The quiz should be having exactly 10 questions its very very important."
+                f"4. The quiz should be having exactly 5 questions its very very important."
                 f"Format of the quiz:"
                 f"**Question :** [question text]"
                 f"**Option :** 1. [option text]"
