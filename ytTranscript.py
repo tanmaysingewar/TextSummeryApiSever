@@ -17,8 +17,6 @@ def get_yt_transcript(url):
     }
 
     response = requests.post(os.getenv('YT_API_URL'), headers=headers, json=body)
-    print(response.status_code)
-    print(response.text)
 
     # Load the JSON data
     data = response.json()

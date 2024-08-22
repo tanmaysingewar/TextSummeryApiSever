@@ -49,6 +49,8 @@ app.add_middleware(
 class YTTranscript(BaseModel):
     yt_link: str
     title: str
+    country : str
+    category : str
 
 
 def chunk_text(text, chunk_size=500):
@@ -438,19 +440,18 @@ async def quiz(
         return {"error": str("Error occurred while generating the quiz")}
 
 
+
 @app.post("/v3/ytQuizAndSummary")
 async def v2YTQuizAndSummary(
     item : YTTranscript) :
     try:
         yt_link = item.yt_link
+        title = item.title
+        country = item.country
+        cat = item.category
 
         if not yt_link:
             return JSONResponse({"error": "YouTube link is required"})
-
-        try:
-            video_id = extract_video_id(yt_link)
-        except Exception as e:
-            return {"error": str("Can not extract video id from the link")}
 
         try : 
             transcript = get_yt_transcript(yt_link)
@@ -460,42 +461,40 @@ async def v2YTQuizAndSummary(
             print(e)
             transcript = False
 
-        def generate_summary_from_title(title):
+        def generate_summary_from_title():
             content = (
-                f"Instruction: You are a YouTube summary generator, your job is to generate a summary of the given data. "
-                f"You have to follow the instructions given on how to generate the summary. If no instruction is given, "
-                f"then just generate the summary on the topic : Topic: {item.title} "
-                f"Instruction: The summary should be at least 200 words long and formatted as follows:\n\n"
-                f"<h2>Summary of title</h2>\n\n"
-                f"<p>Summary text goes here, based on the provided data.</p>\n\n"
-                f"<ul>\n"
-                f"  <li>First key point</li>\n"
-                f"  <li>Second key point</li>\n"
-                f"  <li>Third key point</li>\n"
-                f"  <li>...</li>\n"
-                f"</ul>\n\n"
-                f"<p>Additional summary text or concluding remarks.</p>\n\n"
-                f"<p>Ready to test your knowledge? Take the quiz now and earn coins and XP!</p>"
-                f"Note : Dont include Summary word in the summary title, just title of summary."
+                f"You are a Information extractor for information of topic :{title} and shall focus on topic : {title} related to country : {country} and category : {cat}"
+                f"Extract information relevant to topic : {title} related to country : {country} and category : {cat} and augment it with your inherent knowledge of topic : {title}"
+                f"Instruction: From information extracted generate summary relevant to topic to inform a culturally sophisticated person. It shall be  250 words long and is formatted as follows:"
+                f"<p>This paragraph should summarize the key information for topic : {title}.</p>"
+                f"<ul>"
+                f"  <li>Key point 1</li>"
+                f"  <li>Key point 2</li>"
+                f"  <li>Key point 3</li>"
+                f"  <li>Additional key points as needed</li>"
+                f"</ul>"
+                f"<p>Concluding remarks or additional summary text.</p>"
+                f"Important: Do not include emojis in the summary."
+                f"Note: Do not include title in the summary."
             )
 
             summery_response = chat_completion(content)
             if summery_response == 429:   
                 print("Too many requests")
-                return JSONResponse({"error": "Too many requests, it pass Request rate limit or Token rate limit"})
+                return 429
             elif summery_response == 400:   
                 print("Messages have 39388 tokens, which exceeds the max limit of 16384 tokens.")
-                return JSONResponse({"error": "Messages have 39388 tokens, which exceeds the max limit of 16384 tokens."})
+                return 400
             elif summery_response == False:   
                 print("Error in chat completion")
-                return JSONResponse({"error": "Error in generating the summary"})
+                return False
             return summery_response
         
         def generate_quiz_from_summary(summary):
             content = (
-                f"Generate a quiz based on the following information: Data: {summary} "
+                f"Generate a quiz based on the following information: Data: {summary}  for topic : {title}  related to country : {country} and category : {cat} only"
                 f"Instructions :"
-                f"1. Generate a quiz based on above given information with questions that test understanding rather than memory."
+                f"1. Generate a quiz based on above data for topic : {title} related to country : {country} and category : {cat} only with questions that test understanding rather than memory."
                 f"2. The quiz should be in the form of a list of questions and options."
                 f"3. Ignore the html tags in the data, they should not be included in the quiz."
                 f"4. The quiz should have exactly 5 questions."
@@ -506,25 +505,26 @@ async def v2YTQuizAndSummary(
                 f"**Option :** [option text]"
                 f"**Option :** [option text]"
                 f"**Answer :** [answer number]"
-                f"All the quiz should be in the form of the above format only."
+                f"All the quiz should be on the topic : {title}  related to country : {country} and category : {cat} only."
                 f"Dont add questions on year, month, day, etc."
                 f"Each question should be start with **Question :***"
-                f"Each Option should be start with **Option :***"
+                f"Each Option should be start with **Option :***, it shall be very different from other options and there shall be only one correct option"
                 f"Each answer should be like **Answer :*** and only give the option number for the answer"
-                f"All the quiz should be in the form of the above format only."
-            )  
+                f"make sure there is only one correct answer to each question"
+                f"The quiz should be in form of the above format only."
+            ) 
 
             quiz_response = chat_completion(content)
             print(quiz_response)
             if quiz_response == 429:   
                 print("Too many requests")
-                return JSONResponse({"error": "Too many requests, it pass Request rate limit or Token rate limit"})
+                return 429 
             elif quiz_response == 400:   
                 print("Messages have 39388 tokens, which exceeds the max limit of 16384 tokens.")
-                return JSONResponse({"error": "Messages have 39388 tokens, which exceeds the max limit of 16384 tokens."})
+                return 400
             elif quiz_response == False:   
                 print("Error in chat completion")
-                return JSONResponse({"error": "Error in generating the summary"})
+                return False
 
             json_format =  parse_quiz(quiz_response)
             json_format = json.dumps(json_format)
@@ -534,46 +534,75 @@ async def v2YTQuizAndSummary(
                 "quiz" : json_format
             }
 
-        if transcript == False:
-            summery_response = generate_summary_from_title(item.title)
-            return generate_quiz_from_summary(summery_response)
-        else:
-            print("transcript found")
+        def generate_summary_from_transcript(transcript):
             content = (
-                f"Instruction: You are a YouTube summary generator, your job is to generate a summary of the given data. "
-                f"You have to follow the instructions given on how to generate the summary. If no instruction is given, "
-                f"then just generate the summary. Data: {text_formatted} "
-                f"Instruction: The summary should be at least 200 words long and formatted as follows:"
-                f"<h2>Summary title</h2>"
-                f"<p>Summary text goes here, based on the provided data.</p>"
+                f"You are a Information extractor for information of topic :{title} and shall focus on topic : {title} related to country : {country} and category : {cat}"
+                f"Extract information relevant to topic : {title} related to country : {country} and category : {cat} specified in Data: {transcript} and augment it with your inherent knowledge of topic : {title}"
+                f"Instruction: From information extracted generate summary relevant to topic to inform a culturally sophisticated person. It shall be  250 words long and is formatted as follows:"
+                f"<p>This paragraph should summarize the key information from the data : {transcript} for topic : {title}.</p>"
                 f"<ul>"
-                f"  <li>First key point</li>"
-                f"  <li>Second key point</li>"
-                f"  <li>Third key point</li>"
-                f"  <li>...</li>"
+                f"  <li>Key point 1</li>"
+                f"  <li>Key point 2</li>"
+                f"  <li>Key point 3</li>"
+                f"  <li>Additional key points as needed</li>"
                 f"</ul>"
-                f"<p>Additional summary text or concluding remarks.</p>"
+                f"<p>Concluding remarks or additional summary text.</p>"
+                f"Important: Do not include emojis in the summary."
+                f"Note: Do not include title in the summary."
+            )
+
+            summery_response = chat_completion(content)
+            summery_response = (
+                f"<h2>Title : {title}</h2>"
+                f"{summery_response}"
                 f"<p>Ready to test your knowledge? Take the quiz now and earn coins and XP!</p>"
-                f"Dont include the emojis in the summary."
-                f"Note : Dont include Summary word in the summary title, just title of summary."
             )
 
             summery_response = chat_completion(content)
             if summery_response == 429:   
                 print("Too many requests")
-                return JSONResponse({"error": "Too many requests, it pass Request rate limit or Token rate limit"})
+                return 429
             elif summery_response == 400:   
                 print("Messages have 39388 tokens, which exceeds the max limit of 16384 tokens.")
-                title_summery_response = generate_summary_from_title(item.title)
-                return generate_quiz_from_summary(title_summery_response)
+                return 400
             elif summery_response == False:   
                 print("Error in chat completion")
-                return JSONResponse({"error": "Error in generating the summary"})
-            else: 
+                return False
+            return summery_response
+
+        if cat == "music":
+            summery_response = generate_summary_from_title()
+            summery_response = (
+                f"<h2>Title : {title}</h2>"
+                f"{summery_response}"
+                f"<p>Ready to test your knowledge? Take the quiz now and earn coins and XP!</p>"
+            )
+            return generate_quiz_from_summary(summery_response)
+        else:
+            if transcript == False:
+                summery_response = generate_summary_from_title()
+                summery_response = (
+                    f"<h2>Title : {title}</h2>"
+                    f"{summery_response}"
+                    f"<p>Ready to test your knowledge? Take the quiz now and earn coins and XP!</p>"
+                )
                 return generate_quiz_from_summary(summery_response)
+            else:
+                summery_response = generate_summary_from_transcript(transcript)
+                if summery_response == 429:   
+                    print("Too many requests")
+                    return JSONResponse({"error": "Too many requests, it pass Request rate limit or Token rate limit"})
+                elif summery_response == 400:   
+                    print("Messages have 39388 tokens, which exceeds the max limit of 16384 tokens.")
+                    title_summery_response = generate_summary_from_title(title)
+                    return generate_quiz_from_summary(title_summery_response)
+                elif summery_response == False:   
+                    print("Error in chat completion")
+                    return JSONResponse({"error": "Error in generating the summary"})
+                else: 
+                    return generate_quiz_from_summary(summery_response)
        
     except Exception as e:
         print(e)
         return {"error": str("Error occurred while generating the quiz and summary")}
-
         
