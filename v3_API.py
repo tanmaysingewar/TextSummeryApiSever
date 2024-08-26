@@ -78,21 +78,152 @@ async def v2YTQuizAndSummary(
             transcript = False
 
         def generate_summary_from_title():
-            content = (
-                f"You are a Information extractor for information of topic :{title} and shall focus on topic : {title} related to country : {country} and category : {cat}"
-                f"Extract information relevant to topic : {title} related to country : {country} and category : {cat} and augment it with your inherent knowledge of topic : {title}"
-                f"Instruction: From information extracted generate summary relevant to topic to inform a culturally sophisticated person. It shall be  250 words long and is formatted as follows:"
-                f"<p>This paragraph should summarize the key information for topic : {title}.</p>"
-                f"<ul>"
-                f"  <li>Key point 1</li>"
-                f"  <li>Key point 2</li>"
-                f"  <li>Key point 3</li>"
-                f"  <li>Additional key points as needed</li>"
-                f"</ul>"
-                f"<p>Concluding remarks or additional summary text.</p>"
-                f"Important: Do not include emojis in the summary."
-                f"Note: Do not include title in the summary."
-            )
+            if len(words) < 20 and transcript != "" :
+                #print("Transcript is too short", transcript, title, cat)
+                content = (f"You provide genuinely correct information of topic:{title} and shall focus on topic: {title} related to country: {country} and category: {cat}"
+                    f"Fetch information relevant to topic: {title} related to country: {country} and category: {cat} from your inherent knowledge of topic: {title}"
+                    f"Instruction: From information fetched generate summary relevant to topic: {title}. It shall be 250 words long and is formatted as follows:"
+                    f"Important: Do not include emojis in the summary."
+                    f"Instruction : If provided Data is insufficient then please sticks to facts in data and do not make up sentences"
+                    f"Summary shall not contain sentence : This paragraph should summarize the key information from the data."
+                    f"Summary shall not contain sentence : Concluding remarks or additional summary text."
+                    f"Note: Summary title should not contain the word 'Summary.'"
+                    f"Note: Summary title should contain the topic only: {title} "
+                    f"""
+                    Response should be in HTML format only, with the following structure:
+                    <h2>Title : Title of the summary</h2>
+                    <p>This paragraph should summarize the key information from the data.</p>
+                    <ul>
+                        <li>Key point 1</li>
+                        <li>Key point 2</li>
+                        <li>Key point 3</li>
+                        <li>Additional key points as needed</li>
+                    </ul>
+                    <p>Concluding remarks or additional summary text.</p>
+                    """)
+            else:
+                if cat in  ['Art', 'Cinema', 'History', 'Literature'] and  transcript != "":
+                    print(title, cat,"1")
+                    content = (f"Instruction: You are a Smart Summary Generator. Your task is to create a comprehensive summary of the provided data only. "
+                    f"Follow the specific instructions for generating the summary."
+                    f"generate a well-rounded summary from Data: {transcript} only"
+                    f"Instruction: Ensure the summary is  200 words long and is formatted as follows:"
+                    f"Important: Do not include emojis in the summary."
+                    f"Instruction : If provided Data is insufficient then please sticks to facts in data and do not make up sentences"
+                    f"Summary shall not contain sentence : This paragraph should summarize the key information from the data."
+                    f"Summary shall not contain sentence : Concluding remarks or additional summary text."
+                    f"Note: The summary title should not contain the word 'Summary.'"
+                    f"Note: Summary title should contain the topic only: {title} "
+                    f"""
+                        Response should be in HTML format only, with the following structure:
+                        <h2>Title : Title of the summary</h2>
+                        <p>This paragraph should summarize the key information from the data.</p>
+                        <ul>
+                            <li>Key point 1</li>
+                            <li>Key point 2</li>
+                            <li>Key point 3</li>
+                            <li>Additional key points as needed</li>
+                        </ul>
+                        <p>Concluding remarks or additional summary text.</p>
+                        """)
+                elif cat == "Music" and  transcript != "":
+                    print(title, cat,"2")
+                    content = (f"You are a Information provider of topic :{title} and shall focus on topic : {title} related to country : {country} and category : {cat}"
+                        f"Extract information relevant to topic: {title} related to country : {country} and category: {cat} specified in Data: {transcript} and add your inherent knowledge of topic: {title}"
+                        f"Instruction: From information gathered generate summary relevant to topic. It shall be 250 words long and is formatted as follows:"
+                        f"Important: Do not include emojis in the summary."
+                        f"Note: Summary title should not contain the word 'Summary.'"
+                        f"Summary shall not contain sentence : This paragraph should summarize the key information from the data."
+                        f"Summary shall not contain sentence : Concluding remarks or additional summary text."
+                        f"Instruction : If provided Data is insufficient then just give the topic title as output"
+                        f"Note: Summary title should contain the topic only: {title} "
+                        f"""
+                            Response should be in HTML format only, with the following structure:
+                            <h2>Title : Title of the summary</h2>
+                            <p>This paragraph should summarize the key information from the data.</p>
+                            <ul>
+                                <li>Key point 1</li>
+                                <li>Key point 2</li>
+                                <li>Key point 3</li>
+                                <li>Additional key points as needed</li>
+                            </ul>
+                            <p>Concluding remarks or additional summary text.</p>
+                            """
+                        )
+                elif cat in ["Festivals", "Fashion", "Cuisine", "Beverages", "Life And People", "Dances", 'Travel', 'Life And People ','Life and people'] and  transcript != "":
+                    print(title, cat, "3")
+                    #     f" <li>Additional key points as needed</li>"
+                    #         f"If extracted information is insufficient then just give the topic title as output"
+                    content = (f"You are an Information extractor for information of topic :{title} and shall focus on topic : {title} related to country: {country} and category : {cat}"
+                        f"Extract information relevant to topic: {title} related to country: {country} and category: {cat} specified only in Data: {transcript} "
+                        f"Instruction: From information extracted generate summary relevant to topic. It shall be 250 words long and is formatted as follows:"
+                        f"Important: Do not include emojis in the summary."
+                        f"Note: Summary title should not contain the word 'Summary.'"
+                        f"Do not show extracted information only show Summary in above format"
+                        f"Instruction : If provided Data is insufficient then please sticks to facts in data and do not make up sentences"
+
+                        f"Summary shall not contain sentence : This paragraph should summarize the key information from the data. or Extracted Points"
+                        f"Summary shall not contain sentence : Concluding remarks or additional summary text."
+                        f"Note: Summary title should contain the topic only: {title} "
+                        f"""
+                        Response should be in HTML format only, with the following structure:
+                        <h2>Title : Title of the summary</h2>
+                        <p>This paragraph should summarize the key information from the data.</p>
+                        <ul>
+                            <li>Key point 1</li>
+                            <li>Key point 2</li>
+                            <li>Key point 3</li>
+                            <li>Additional key points as needed</li>
+                        </ul>
+                        <p>Concluding remarks or additional summary text.</p>
+                        """)
+                elif transcript == "":
+                    print(title, cat, "no transcript")
+                    content = (
+                        f"You provide genuinely correct information of topic:{title} and shall focus on topic: {title} related to country: {country} and category: {cat}"
+                        f"Fetch information relevant to topic: {title} related to country: {country} and category: {cat} from your inherent knowledge of topic: {title}"
+                        f"Instruction: From information fetched generate summary relevant to topic: {title}. It shall be 250 words long and is formatted as follows:"
+                        f"Important: Do not include emojis in the summary."
+                        f"Note: Summary title should not contain the word 'Summary.'"
+                        f"Summary shall not contain sentence : This paragraph should summarize the key information from the data."
+                        f"Summary shall not contain sentence : Concluding remarks or additional summary text."
+                        f"Note: Summary title should contain the topic only: {title} "
+                        f"""
+                        Response should be in HTML format only, with the following structure:
+                        <h2>Title : Title of the summary</h2>
+                        <p>This paragraph should summarize the key information from the data.</p>
+                        <ul>
+                            <li>Key point 1</li>
+                            <li>Key point 2</li>
+                            <li>Key point 3</li>
+                            <li>Additional key points as needed</li>
+                        </ul>
+                        <p>Concluding remarks or additional summary text.</p>
+                        """)
+                else:
+                    print(title,",",cat,",",":: else")
+                    content = (f"You are a Information extractor for information of topic :{title} and shall focus on topic : {title} related to country : {country} and category : {cat}"
+                        f"Extract information relevant to topic: {title} related to country : {country} and category: {cat} specified in Data: {transcript} only "
+                        f"Instruction: From information extracted generate summary relevant to topic to inform a culturally sophisticated person. It shall be 250 words long and is formatted as follows:"
+                        f"Important: Do not include emojis in the summary."
+                        f"If extracted information is insufficient then just give the topic title as output"
+                        f"Note: Summary title should not contain the word 'Summary.'"
+                        f"Summary shall not contain sentence : This paragraph should summarize the key information from the data. or Extracted Points"
+                        f"Summary shall not contain sentence : Concluding remarks or additional summary text."
+                        f"Note: Summary title should contain the topic only: {title} "
+                        f"""
+                            Response should be in HTML format only, with the following structure:
+                            <h2>Title : Title of the summary</h2>
+                            <p>This paragraph should summarize the key information from the data.</p>
+                            <ul>
+                                <li>Key point 1</li>
+                                <li>Key point 2</li>
+                                <li>Key point 3</li>
+                                <li>Additional key points as needed</li>
+                            </ul>
+                            <p>Concluding remarks or additional summary text.</p>
+                            """
+                        )
 
             summery_response = chat_completion(content)
             if summery_response == 429:   
