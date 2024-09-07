@@ -623,7 +623,7 @@ async def v2YTQuizAndSummary(item : YTTranscript):
             print("transcript generated")
         except Exception as e:
             print("No transcript generated")
-            transcript = False
+            transcript = ""
 
         def generate_summary(transcript, title, country, cat):
             cat = '. '.join(i.capitalize() for i in cat.split('. '))
