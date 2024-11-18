@@ -1,4 +1,5 @@
 import requests
+import os
 
 url = "https://api.perplexity.ai/chat/completions"
 models =["llama-3.1-8b-instruct","llama-3.1-sonar-small-128k-online"]
@@ -18,7 +19,7 @@ def dual_model_chat_completion(prompt,i):
         headers = {
             "accept": "application/json",
             "content-type": "application/json",
-            "authorization": f"Bearer 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" #
+            "authorization": f"Bearer {os.getenv('PERPLEXITY_API_KEY')}" #
         }
 
         response = requests.post(url, json=payload, headers=headers)

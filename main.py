@@ -34,6 +34,11 @@ import json
 from get_proxy import get_proxy
 from ytTranscript import get_yt_transcript
 
+import redis
+
+from allfunctions import get_key_value_pairs,call_groq_api,get_relative_info
+
+
 UPLOAD_DIR = Path() / "upload"
 
 
@@ -440,8 +445,6 @@ async def quiz(
         print(e)
         return {"error": str("Error occurred while generating the quiz")}
 
-
-
 @app.post("/v3/ytQuizAndSummary")
 async def v2YTQuizAndSummary(
     item : YTTranscript) :
@@ -607,7 +610,6 @@ async def v2YTQuizAndSummary(
         print(e)
         return {"error": str("Error occurred while generating the quiz and summary")}
         
-
 @app.post("/v4/ytQuizAndSummary")
 async def v2YTQuizAndSummary(item : YTTranscript):
     try:
@@ -886,6 +888,99 @@ async def v2YTQuizAndSummary(item : YTTranscript):
         except Exception as e:
             return {"error": str("Error occurred while generating the quiz and summary")}
 
+    except Exception as e:
+        print(e)
+        return {"error": str("Error occurred while generating the quiz and summary")}
+
+
+redis_client = redis.Redis(
+  host=os.getenv('REDIS_HOST'),
+  port=6379,
+  password=os.getenv('REDIS_PASSWORD'),
+  ssl=True,
+  db=0
+)
+
+class QuestionRequest(BaseModel):
+    question: Union[str, None] = None
+
+@app.post("/cv/chat")
+async def cv_chat(request: QuestionRequest):
+    try:
+        print(request.question)
+        if not request.question or request.question.strip() == "":
+            return {"error": str("Please provide a question")}
+
+        def save_to_redis(data_string):
+            # Parse the input string
+            global redis_client
+            entries = data_string.split("\n")
+            
+            for entry in entries:
+                if "Value:" in entry:
+                    # Split the entry into key and value
+                    key, value = entry.split("Value:", 1)
+                    key = key.strip()  # Extract the key
+                    value = value.strip()  # Extract the value
+                    
+                    # Debug print statement to simulate saving to Redis
+                    print(f"Saving key: {key}, value: {value} to Redis...")
+                    # Uncomment below line to actually save in Redis
+                    redis_client.set(key, value)
+            
+            return "Data successfully saved to Redis."
+
+        def get_response_by_bot(question):
+
+            relative_info = get_relative_info(question,redis_client)
+            print(relative_info)
+
+            bot_prompt ="""
+            ## Instruction
+                You are a highly conversational and culturally vibrant person who reflect the spirit and personality of a Delhi. You have a deep understanding of Delhi’s geography, culture, landmarks, food, history, and local quirks. You can seamlessly switch between English and Hinglish (a mix of Hindi and English)but mostly use English to suit the conversational tone of someone from Delhi. Your tone is lively, warm, and friendly, with a touch of wit, typical of Delhi.
+
+                You are knowledgeable about:
+                    1.	Famous landmarks like India Gate, Red Fort, Qutub Minar, Lotus Temple, and Connaught Place.
+                    2.	Popular neighborhoods like Chandni Chowk, Hauz Khas, Karol Bagh, and Rajouri Garden.
+                    3.	Iconic street food like chhole bhature, golgappe, butter chicken, and paranthe wali gali.
+                    4.	Typical local slang, phrases, and humor (e.g., ‘Bhai, ek dum mast scene hai’).
+
+                When conversing, you infuse your responses with this Delhi vibe. You can offer directions, suggest places to eat, or share fun facts about the city while reflecting the passion and energy of someone deeply rooted in Delhi’s life.
+                
+                Here is relative information about you: {relative_info}
+                NOTE: If the relative information is not available dont say in response it is not available, you should come up with something based on the relative information and your personality.
+                If the relative information is not available or it is not relevant to the user question, dont use it.
+
+                Response in following JSON format: 
+                {
+                    "response": "Your response to the user question",
+                    "save_info": "If information of the asked query it is NOT available in the relative information then respond YES else respond NO"
+                }
+
+                Output should be in following JSON format nothing else should be there.
+                Make the response as small as possible.
+
+            ## User Question
+            Answer the user question:{question}
+            """.replace("{relative_info}", relative_info).replace("{question}", question)
+
+            bot_prompt_response = call_groq_api(bot_prompt)
+
+            # Convert the string to a Python dictionary
+            bot_res_to_json = json.loads(bot_prompt_response)
+
+            # Access the fields
+            bot_response = bot_res_to_json['response']
+            save_info = bot_res_to_json['save_info']
+
+            if save_info == "YES":
+                key_value_pairs = get_key_value_pairs(bot_response)
+                save_to_redis(key_value_pairs)
+                
+            return bot_response
+
+        return get_response_by_bot(request.question)
+    
     except Exception as e:
         print(e)
         return {"error": str("Error occurred while generating the quiz and summary")}

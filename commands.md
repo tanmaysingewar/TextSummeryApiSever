@@ -18,16 +18,8 @@ uvicorn main:app --host 0.0.0.0 --port 5000
 ## To run the server in background with the output logs in file 
 nohup uvicorn main:app --host 0.0.0.0 --port 5000  > logs.txt
  
-## To run the server in background
+## To run the server in background with no log files
 nohup uvicorn main:app --host 0.0.0.0 --port 5000 
-
-
-## YT Likes
-https://youtu.be/HCV9nueXQ6Y?feature=shared === error
-
-https://www.youtube.com/watch?v=DHjqpvDnNGE
-
-https://youtu.be/DHjqpvDnNGE?si=49jlB7vXUP9aAonR
 
 
 # Additional Commands
