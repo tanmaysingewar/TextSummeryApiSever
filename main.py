@@ -36,7 +36,12 @@ from ytTranscript import get_yt_transcript
 
 import redis
 
-from allfunctions import get_key_value_pairs,call_groq_api,get_relative_info
+from groq import Groq
+
+# Initialize the Groq client
+client = Groq(
+    api_key="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"  # Replace with your actual API key
+)
 
 
 UPLOAD_DIR = Path() / "upload"
@@ -911,6 +916,148 @@ async def cv_chat(request: QuestionRequest):
         if not request.question or request.question.strip() == "":
             return {"error": str("Please provide a question")}
 
+        import time
+        import json
+        import asyncio
+
+        # Function to call Groq API with LLAMA 3 model
+        def call_groq_api(prompt, model="llama-3.1-70b-versatile"):
+            try:
+                chat_completion = client.chat.completions.create(
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": prompt,
+                        }
+                    ],
+                    model=model,
+                )
+                return chat_completion.choices[0].message.content
+            except Exception as e:
+                print(f"Error calling Groq API: {e}")
+                return None
+
+        # save info to the database
+        def get_key_value_pairs(response):
+            get_key_value_pairs_prompt = """
+                ## Instruction
+                    You are a helpful assistant that can save information to the redis database. 
+                    Your job is to convert the give Response in more consisted way and store it in key vale pair in the redis database.
+                    The Key selection should be done based on the below categories.
+                    - The categories are:  
+                        - general: Response about the general information.
+                        - skills: Response about specific skills or abilities.
+                        - interests: Response about likes, hobbies.
+                        - relationships: Response about family, friends, or social connections.
+                        - emotion: Response regarding feelings or emotional state.
+                        - knowledge: Response about facts or general information.
+                        - memory: Response that require recall of past information.
+                        - tasks: Response about specific actions or plans.
+                        - goals: Response about objectives, aspirations, or future plans.
+                        - preferences: Response about personal choices or inclinations.
+                        - opinions: Response requesting personal thoughts or views.
+                        - habits: Response about routines, patterns, or regular actions.
+                    Select the relative key and make the response consisted without loosing the information.
+                    For the key vale pair as below:
+                    Key:suitable_sub-value Value:consisted response
+
+                    IMPORTANT: 
+                        - Only output with the key vale pairs and nothing else.
+                        - And pairs should be related to each other.
+
+                    ---
+                    Examples:
+                    Input: Arre bhai, my dad\'s a shopkeeper in Karol Bagh, he sells some amazing fabrics and textiles, been running the shop for over 20 years, real Dilliwalah spirit yaar!.
+                    Output: relationships:father Value:shopkeeper
+                            relationships:father:location Value:Karol Bagh
+                            relationships:father:business Value:sells fabrics and textiles
+
+                    Input: Arre, my mom\'s a total foodie, bhai! She runs a small parantha joint in Paranthe Wali Gali, and her paranthas are to die for, ek dum famous!
+                    Output: relationships:mother Value:foodie
+                            relationships:mother:business Value:runs a paratha joint
+                            relationships:mother:location Value:Paranthe Wali Gali
+
+                    ----
+                    ## User Response
+                    {response}
+            """.replace("{response}", response)
+
+            key_vale_pair = call_groq_api(get_key_value_pairs_prompt)
+            print(key_vale_pair)
+            return key_vale_pair
+
+        # Relative information search
+        def get_relative_info(question,r):
+            start_time = time.time()
+            
+            relative_info_prompt ="""
+                ## Instruction
+                - You are the highly skilled question categorizer who can categorize questions into categories based on the required information.
+                - The categories are:  
+                    - general: Questions about the general information.
+                    - skills: Questions about specific skills or abilities.
+                    - interests: Questions about likes, hobbies, or preferences.
+                    - relationships: Questions about family, friends, or social connections.
+                    - emotion: Questions regarding feelings or emotional state.
+                    - knowledge: Questions about facts or general information.
+                    - memory: Questions that require recall of past information.
+                    - tasks: Questions about specific actions or plans.
+                    - goals: Questions about objectives, aspirations, or future plans.
+                    - preferences: Questions about personal choices or inclinations.
+                    - opinions: Questions requesting personal thoughts or views.
+                    - habits: Questions about routines, patterns, or regular actions.
+                
+                - If the question belongs to any of the categories above, respond with the corresponding category. 
+                - If the question does not belong to any category, respond with NO.
+
+                Example:
+                Input: What are your skills?
+                Output: skills
+
+                Input: What is your name?
+                Output: general
+
+                ## User Question  
+                {question}
+
+                --- 
+            """.replace("{question}", question)
+            res = call_groq_api(relative_info_prompt)
+
+            # Calculate Category Identification Time (CIT)
+            cit = round((time.time() - start_time) * 1000, 2)  # in milliseconds
+
+            res = res + ":*"
+            print(f"relative info prompt: {res}")
+
+            # Start Data Retrieval Time measurement
+            start_drt = time.time()
+
+            cursor = 0
+            result = {}
+
+            # Scan loop
+            while True:
+                cursor, batch = r.scan(cursor=cursor, match=res)
+                
+                for key in batch:
+                    key_str = key.decode('utf-8')  # Decode byte key to string
+                    result[key_str] = r.get(key).decode('utf-8')  # Get string value
+                
+                if cursor == 0:
+                    break
+
+            # Calculate Data Retrieval Time (DRT)
+            drt = round((time.time() - start_drt) * 1000, 2)  # in milliseconds
+
+            # get values in variable
+            response = ""
+            # Print results
+            for key, value in result.items():
+                response += f"{key} - {value}\n"
+            
+            return response, cit, drt
+
         def save_to_redis(data_string):
             # Parse the input string
             global redis_client
@@ -930,22 +1077,22 @@ async def cv_chat(request: QuestionRequest):
             
             return "Data successfully saved to Redis."
 
-        def get_response_by_bot(question):
+        def get_response_by_bot(question, relative_info, cit, drt):
 
-            relative_info = get_relative_info(question,redis_client)
-            print(relative_info)
+            # Start Response Generation Time measurement
+            start_rgt = time.time()
 
             bot_prompt ="""
             ## Instruction
-                You are a highly conversational and culturally vibrant person who reflect the spirit and personality of a Delhi. You have a deep understanding of Delhi’s geography, culture, landmarks, food, history, and local quirks. You can seamlessly switch between English and Hinglish (a mix of Hindi and English)but mostly use English to suit the conversational tone of someone from Delhi. Your tone is lively, warm, and friendly, with a touch of wit, typical of Delhi.
+                You are a highly conversational and culturally vibrant person who reflect the spirit and personality of a Delhi. You have a deep understanding of Delhi's geography, culture, landmarks, food, history, and local quirks. You can seamlessly switch between English and Hinglish (a mix of Hindi and English)but mostly use English to suit the conversational tone of someone from Delhi. Your tone is lively, warm, and friendly, with a touch of wit, typical of Delhi.
 
                 You are knowledgeable about:
                     1.	Famous landmarks like India Gate, Red Fort, Qutub Minar, Lotus Temple, and Connaught Place.
                     2.	Popular neighborhoods like Chandni Chowk, Hauz Khas, Karol Bagh, and Rajouri Garden.
                     3.	Iconic street food like chhole bhature, golgappe, butter chicken, and paranthe wali gali.
-                    4.	Typical local slang, phrases, and humor (e.g., ‘Bhai, ek dum mast scene hai’).
+                    4.	Typical local slang, phrases, and humor (e.g., 'Bhai, ek dum mast scene hai').
 
-                When conversing, you infuse your responses with this Delhi vibe. You can offer directions, suggest places to eat, or share fun facts about the city while reflecting the passion and energy of someone deeply rooted in Delhi’s life.
+                When conversing, you infuse your responses with this Delhi vibe. You can offer directions, suggest places to eat, or share fun facts about the city while reflecting the passion and energy of someone deeply rooted in Delhi's life.
                 
                 Here is relative information about you: {relative_info}
                 NOTE: If the relative information is not available dont say in response it is not available, you should come up with something based on the relative information and your personality.
@@ -966,6 +1113,9 @@ async def cv_chat(request: QuestionRequest):
 
             bot_prompt_response = call_groq_api(bot_prompt)
 
+            # Calculate Response Generation Time (RGT)
+            rgt = round((time.time() - start_rgt) * 1000, 2)  # in milliseconds
+
             # Convert the string to a Python dictionary
             bot_res_to_json = json.loads(bot_prompt_response)
 
@@ -973,13 +1123,29 @@ async def cv_chat(request: QuestionRequest):
             bot_response = bot_res_to_json['response']
             save_info = bot_res_to_json['save_info']
 
-            if save_info == "YES":
-                key_value_pairs = get_key_value_pairs(bot_response)
-                save_to_redis(key_value_pairs)
-                
-            return bot_response
+            # Prepare the final response
+            response_json = {
+                "response": bot_response,
+                "cit": cit,
+                "drt": drt,
+                "rgt": rgt
+            }
 
-        return get_response_by_bot(request.question)
+            # Asynchronously save info if needed
+            if save_info == "YES":
+                asyncio.create_task(async_save_to_redis(bot_response))
+
+            return response_json
+        # Async function to save to Redis without blocking the main response
+        async def async_save_to_redis(bot_response):
+            key_value_pairs = get_key_value_pairs(bot_response)
+            save_to_redis(key_value_pairs)
+
+        # Get relative info with timing
+        relative_info, cit, drt = get_relative_info(request.question, redis_client)
+
+        # Get bot response with timing metrics
+        return get_response_by_bot(request.question, relative_info, cit, drt)
     
     except Exception as e:
         print(e)
